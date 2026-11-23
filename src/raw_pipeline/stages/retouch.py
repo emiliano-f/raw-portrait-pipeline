@@ -11,6 +11,7 @@ from raw_pipeline.core.context import ImageContext
 from raw_pipeline.core.protocols import Retoucher
 from raw_pipeline.core.registries import retoucher_registry, stage_registry
 from raw_pipeline.core.registry import BuildEnv
+from raw_pipeline.stages import retouchers as _retouchers  # noqa: F401  (registers the retouchers)
 
 
 @stage_registry.register("retouch")
