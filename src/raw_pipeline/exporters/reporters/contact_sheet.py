@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import io
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO, ClassVar, Final, Self
@@ -45,7 +45,8 @@ FONT_SIZE_PX: Final = 13
 LINE_HEIGHT_PX: Final = 18
 CAPTION_MAX_LINES: Final = 3
 MAX_ROWS_PER_PAGE: Final = 40
-"""Keeps every page far below the JPEG limit of 65 535 px per side."""
+"""Rows per page; fewer when large thumbnails would exceed :data:`JPEG_MAX_SIDE_PX`."""
+JPEG_MAX_SIDE_PX: Final = 65_535
 SHEET_JPEG_QUALITY: Final = 90
 CHROMA_SUBSAMPLING_444: Final = 0
 BACKGROUND_RGB: Final = (24, 24, 24)
@@ -138,26 +139,37 @@ class ContactSheetReporter:
         error = f"FAILED {outcome.error_type or 'error'}: {outcome.error}" if not outcome.ok else None
         self._rows.append(_SheetRow(outcome.source_path.name, dict(outcome.thumbnails), caption, error))
 
-    def render(self) -> list[Image.Image]:
-        """Return the sheet pages for the outcomes added so far."""
+    def render(self) -> Iterator[Image.Image]:
+        """Yield the sheet pages for the outcomes added so far, one at a time."""
         rows = sorted(self._rows, key=lambda row: row.name)
         if not rows:
-            return [self._render_page([])]
-        return [self._render_page(rows[i : i + MAX_ROWS_PER_PAGE]) for i in range(0, len(rows), MAX_ROWS_PER_PAGE)]
+            yield self._render_page([])
+            return
+        per_page = self._rows_per_page(rows)
+        for start in range(0, len(rows), per_page):
+            yield self._render_page(rows[start : start + per_page])
 
     def finalize(self, output_dir: Path) -> list[Path]:
         """Write the sheet page(s) into ``output_dir`` and return their paths."""
-        pages = [self._encode(page) for page in self.render()]
         base = Path(self.filename)
-        names = [base.name if i == 0 else f"{base.stem}-{i + 1}{base.suffix}" for i in range(len(pages))]
         written: list[Path] = []
-        for name, data in zip(names, pages, strict=True):
+        for index, page in enumerate(self.render()):
+            data = self._encode(page)
+            name = base.name if index == 0 else f"{base.stem}-{index + 1}{base.suffix}"
 
             def write(handle: BinaryIO, data: bytes = data) -> None:
                 handle.write(data)
 
             written.append(write_output(output_dir / base.parent / name, write, overwrite=self.overwrite))
         return written
+
+    def _rows_per_page(self, rows: Sequence[_SheetRow]) -> int:
+        available = JPEG_MAX_SIDE_PX - GUTTER_PX - LINE_HEIGHT_PX
+        return max(1, min(MAX_ROWS_PER_PAGE, available // self._row_height(self._columns(rows))))
+
+    @staticmethod
+    def _row_height(columns: Sequence[tuple[str, int]]) -> int:
+        return max(edge for _, edge in columns) + CAPTION_MAX_LINES * LINE_HEIGHT_PX + GUTTER_PX
 
     def _columns(self, rows: Sequence[_SheetRow]) -> list[tuple[str, int]]:
         columns = [(key, self.thumbnail_long_edge_px) for key in THUMBNAIL_COLUMNS]
@@ -174,7 +186,7 @@ class ContactSheetReporter:
         columns = self._columns(rows)
         width = GUTTER_PX + sum(edge + GUTTER_PX for _, edge in columns)
         cell_height = max(edge for _, edge in columns)
-        row_height = cell_height + CAPTION_MAX_LINES * LINE_HEIGHT_PX + GUTTER_PX
+        row_height = self._row_height(columns)
         height = GUTTER_PX + LINE_HEIGHT_PX + len(rows) * row_height
         sheet = Image.new("RGB", (width, height), BACKGROUND_RGB)
         draw = ImageDraw.Draw(sheet)

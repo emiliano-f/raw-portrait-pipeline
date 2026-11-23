@@ -88,3 +88,13 @@ def test_built_from_config(tmp_path: Path) -> None:
     reporter = reporter_registry.create("contact_sheet", env)
     assert isinstance(reporter, ContactSheetReporter)
     assert (reporter.filename, reporter.thumbnail_long_edge_px, reporter.overwrite) == ("cs.jpg", 300, False)
+
+
+def test_pages_stay_within_jpeg_side_limit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    limit = _expected_size(2, [THUMB, THUMB])[1] + 5
+    monkeypatch.setattr(contact_sheet, "JPEG_MAX_SIDE_PX", limit)
+    paths = _sheet(*(ok_outcome(f"IMG_{i}.CR2") for i in range(5))).finalize(tmp_path)
+    assert len(paths) == 3
+    for path in paths:
+        with Image.open(path) as img:
+            assert img.height <= limit
