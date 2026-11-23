@@ -13,6 +13,24 @@ from raw_pipeline.config.models import AppConfig
 from raw_pipeline.core.errors import ConfigError
 
 
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """Safe loader that rejects duplicate mapping keys instead of keeping the last."""
+
+
+def _construct_unique_mapping(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[Any, Any]:
+    seen: set[Any] = set()
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node)
+        if key in seen:
+            msg = f"duplicate key {key!r}"
+            raise yaml.constructor.ConstructorError(None, None, msg, key_node.start_mark)
+        seen.add(key)
+    return loader.construct_mapping(node)
+
+
+_UniqueKeyLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_unique_mapping)
+
+
 def parse_config(data: Mapping[str, Any] | None) -> AppConfig:
     """Validate an already-parsed mapping. ``None`` (empty file) gives all defaults.
 
@@ -43,7 +61,7 @@ def load_config(path: Path | None) -> AppConfig:
         msg = f"cannot read config file {path}: {exc}"
         raise ConfigError(msg) from exc
     try:
-        data = yaml.safe_load(text)
+        data = yaml.load(text, Loader=_UniqueKeyLoader)
     except yaml.YAMLError as exc:
         msg = f"config file {path} is not valid YAML: {exc}"
         raise ConfigError(msg) from exc

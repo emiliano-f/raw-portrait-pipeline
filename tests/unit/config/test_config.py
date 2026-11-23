@@ -162,3 +162,10 @@ def test_non_utf8_config_is_config_error(tmp_path: Path) -> None:
     path.write_bytes(b"meter:\n  strategy: \xff\xfe\n")
     with pytest.raises(ConfigError, match="cannot read"):
         load_config(path)
+
+
+def test_duplicate_yaml_keys_are_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "dup.yaml"
+    path.write_text("meter:\n  target_face_luminance: 0.2\nmeter:\n  strategy: center_weighted\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match="duplicate key 'meter'"):
+        load_config(path)
