@@ -20,8 +20,9 @@ from raw_pipeline.core.registry import BuildEnv
 DIFFUSE_WHITE: Final = 1.0
 """Scene-linear value of diffuse white in the working space."""
 
-MAX_SHADOW_LIFT_EV: Final = 2.0 / math.log(2.0)
-"""Largest ``shadow_lift_ev`` (exclusive) for which the shadow lift stays strictly monotonic (EV)."""
+MAX_SHADOW_LIFT_EV: Final = 2.0
+"""Largest ``shadow_lift_ev`` (inclusive, EV); same bound as ``ToneConfig``, under the
+strict-monotonicity limit ``2 / ln 2``."""
 
 _MIN_LUMINANCE: Final = 1e-12
 """Below this luminance the per-pixel gain is taken as its limit at zero."""
@@ -48,7 +49,7 @@ class ToneCurve:
     Attributes:
         highlight_rolloff_start_ev: Shoulder start in EV relative to diffuse white; must be < 0.
         highlight_rolloff_ev: Scene headroom above diffuse white mapped to 1.0, in EV (> 0).
-        shadow_lift_ev: Gain of the deepest shadows in EV, ``0 <= lift < MAX_SHADOW_LIFT_EV``.
+        shadow_lift_ev: Gain of the deepest shadows in EV, ``0 <= lift <= MAX_SHADOW_LIFT_EV``.
         shadow_pivot_luminance: Scene-linear luminance where the lift reaches 0 EV (> 0).
     """
 
@@ -64,8 +65,8 @@ class ToneCurve:
         if self.highlight_rolloff_ev <= 0:
             msg = f"tone.highlight_rolloff_ev must be > 0, got {self.highlight_rolloff_ev}"
             raise ConfigError(msg)
-        if not 0 <= self.shadow_lift_ev < MAX_SHADOW_LIFT_EV:
-            msg = f"tone.shadow_lift_ev must be in [0, {MAX_SHADOW_LIFT_EV:.3f}) EV, got {self.shadow_lift_ev}"
+        if not 0 <= self.shadow_lift_ev <= MAX_SHADOW_LIFT_EV:
+            msg = f"tone.shadow_lift_ev must be in [0, {MAX_SHADOW_LIFT_EV:g}] EV, got {self.shadow_lift_ev}"
             raise ConfigError(msg)
         if self.shadow_pivot_luminance <= 0:
             msg = f"tone.shadow_pivot_luminance must be > 0, got {self.shadow_pivot_luminance}"

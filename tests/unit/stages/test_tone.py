@@ -56,7 +56,12 @@ def ramp(lo: float = -0.01, hi: float = 20.0, n: int = 200_001) -> np.ndarray:
 
 @pytest.mark.parametrize(
     "c",
-    [DEFAULT, curve(shadow_lift_ev=0.0), curve(shadow_lift_ev=2.8), curve(highlight_rolloff_start_ev=-0.1)],
+    [
+        DEFAULT,
+        curve(shadow_lift_ev=0.0),
+        curve(shadow_lift_ev=MAX_SHADOW_LIFT_EV),
+        curve(highlight_rolloff_start_ev=-0.1),
+    ],
 )
 def test_curve_is_monotonic_and_finite(c: ToneCurve) -> None:
     y = c.apply(ramp())
@@ -106,7 +111,7 @@ def test_curve_is_c1_at_knees(knee: float) -> None:
     [
         {"highlight_rolloff_start_ev": 0.0},
         {"highlight_rolloff_ev": 0.0},
-        {"shadow_lift_ev": MAX_SHADOW_LIFT_EV},
+        {"shadow_lift_ev": MAX_SHADOW_LIFT_EV + 0.01},
         {"shadow_lift_ev": -0.1},
         {"shadow_pivot_luminance": 0.0},
     ],
