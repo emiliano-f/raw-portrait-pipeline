@@ -6,7 +6,7 @@ import pytest
 
 from raw_pipeline.core.artifacts import OUTPUT_PATHS
 from raw_pipeline.core.context import ImageContext
-from raw_pipeline.core.errors import StageError
+from raw_pipeline.core.errors import OutputExistsError, StageError
 from raw_pipeline.core.protocols import Stage
 from raw_pipeline.core.registries import stage_registry
 from raw_pipeline.exporters.jpeg import JpegExporter
@@ -69,3 +69,18 @@ def test_built_from_config(tmp_path: Path) -> None:
 def test_requires_decoded_image(tmp_path: Path) -> None:
     with pytest.raises(StageError):
         ExportStage([_FakeExporter()], tmp_path).process(ImageContext.initial(Path("a.CR2")))
+
+
+def test_output_conflict_removes_files_written_for_the_image(tmp_path: Path) -> None:
+    (tmp_path / "IMG_0001.tif").write_bytes(b"previous")
+    stage = ExportStage(
+        [
+            JpegExporter(quality=90, long_edge_px=None, keep_gps=False, overwrite=False),
+            TiffExporter(long_edge_px=None, overwrite=False),
+        ],
+        tmp_path,
+    )
+    with pytest.raises(OutputExistsError):
+        stage.process(decoded_context(gradient_image(16, 24)))
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["IMG_0001.tif"]
+    assert (tmp_path / "IMG_0001.tif").read_bytes() == b"previous"

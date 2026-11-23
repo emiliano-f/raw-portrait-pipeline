@@ -9,7 +9,7 @@ from typing import ClassVar, Self
 from raw_pipeline.config import app_config
 from raw_pipeline.core.artifacts import OUTPUT_PATHS
 from raw_pipeline.core.context import ImageContext
-from raw_pipeline.core.errors import StageError
+from raw_pipeline.core.errors import OutputExistsError, StageError
 from raw_pipeline.core.protocols import Exporter
 from raw_pipeline.core.registries import exporter_registry, stage_registry
 from raw_pipeline.core.registry import BuildEnv
@@ -79,7 +79,7 @@ class ExportStage:
             msg = "export needs a decoded image"
             raise StageError(msg)
         destination = self.destination(ctx.source_path)
-        paths = tuple(exporter.export(ctx, destination) for exporter in self.exporters)
+        paths = self._export_all(ctx, destination)
         height, width = ctx.image.shape[:2]
         out_width, out_height = output_size(width, height, self.long_edge_px)
         record: dict[str, Scalar] = {
@@ -90,3 +90,16 @@ class ExportStage:
             "output_height": out_height,
         }
         return ctx.with_artifact(OUTPUT_PATHS, paths).with_record(self.name, record)
+
+    def _export_all(self, ctx: ImageContext, destination: Path) -> tuple[Path, ...]:
+        written: list[Path] = []
+        try:
+            for exporter in self.exporters:
+                written.append(exporter.export(ctx, destination))
+        except OutputExistsError:
+            # Files written moments ago in this call were new (exclusive mode); removing them keeps
+            # the image all-or-nothing so a rerun hits the same conflict instead of a half export.
+            for path in written:
+                path.unlink(missing_ok=True)
+            raise
+        return tuple(written)
