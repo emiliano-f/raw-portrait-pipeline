@@ -122,3 +122,28 @@ def test_built_from_config(tmp_path: Path) -> None:
     config = AppConfig(defects={"detection": detection})
     detector = StatisticalDefectDetector.from_env(BuildEnv(config=config, output_dir=tmp_path))
     assert (detector.outlier_threshold_sigma, detector.min_frame_fraction, detector.max_pixel_defects) == (5, 0.5, 7)
+
+
+def test_exact_frame_fraction_is_accepted() -> None:
+    frames = [_dark(s, INJECTED if s < 14 else ()) for s in range(25)]
+    assert _found(StatisticalDefectDetector(min_frame_fraction=0.56), frames) == set(INJECTED)
+
+
+def test_staggered_adjacent_lines_keep_their_own_extents() -> None:
+    defects = (ColumnDefect(index=60), ColumnDefect(index=61, end=128))
+    assert _found(StatisticalDefectDetector(), [_dark(defects=defects)]) == set(defects)
+
+
+@pytest.mark.parametrize("defect", [ColumnDefect(index=0, width=4), RowDefect(index=SIZE - 4, width=4)])
+def test_band_at_the_sensor_border_is_not_widened(defect: ColumnDefect | RowDefect) -> None:
+    assert _found(StatisticalDefectDetector(), [_dark(defects=(defect,))]) == {defect}
+
+
+def test_stationary_scene_edge_is_not_a_defect() -> None:
+    frames = [cfa_frame(SIZE, SIZE, level=3000, seed=s, edge_at_x=60) for s in range(5)]
+    assert StatisticalDefectDetector().detect(frames) == []
+
+
+def test_six_photosite_band_is_found_whole() -> None:
+    band = ColumnDefect(index=100, width=6)
+    assert _found(StatisticalDefectDetector(), [_dark(defects=(band,))]) == {band}

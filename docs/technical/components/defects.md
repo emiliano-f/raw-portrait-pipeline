@@ -78,15 +78,22 @@ pixels in row-major order. It is built from `defects.detection`
 Per frame:
 
 1. **High-pass residual.** Each photosite minus the median of its same-colour
-   neighbours. Columns use 3 neighbours on each side along the row (rows use
-   the transposed frame), pixels use the 8-neighbour ring. Smooth scene
-   content cancels out, so the same statistics work on dark frames and on
-   portraits. The median keeps photosites next to a hot band of up to 4
-   photosites wide clean.
-2. **Lines.** Each column's residual is reduced to its median over segments
-   of `SEGMENT_LENGTH_PX` (64) rows, then turned into robust z-scores
-   (`(x - median) / (1.4826 · MAD)`) across columns of the same CFA parity.
-   Segments with `|z| > outlier_threshold_sigma` are flagged.
+   neighbours; neighbours outside the frame are skipped. Smooth scene content
+   cancels out, so the same statistics work on dark frames and on portraits.
+2. **Lines.** For columns (rows use the transposed frame) the residual is
+   taken separately against 3 same-colour neighbours on the left and on the
+   right, reduced to its median over segments of `SEGMENT_LENGTH_PX` (64)
+   rows and turned into robust z-scores (`(x - median) / (1.4826 · MAD)`)
+   across columns of the same CFA parity. A defect differs from *both*
+   sides, so a segment's score is the smaller of the two z-scores when they
+   agree in sign, else 0: a sharp scene edge that stays in place across a
+   tripod batch differs from one side only and is not flagged. Segments
+   with `|z| > outlier_threshold_sigma` are flagged, excluded as neighbours,
+   and the frame is rescored until nothing new is flagged (at most 8
+   passes); each pass uncovers the next column of a wide band or of a band
+   at the sensor border. Bands up to 6 photosites wide are detected; wider
+   bands go unnoticed (every column then has a defective majority on one
+   side) and must be written into the map by hand.
 3. **Pixels.** The 8-neighbour residual, ignoring photosites flagged as lines
    in this frame, is scored per CFA colour plane in the same way.
 
@@ -105,7 +112,7 @@ scene. In batch mode on normal photos, scene edges are outliers in single
 frames only and are rejected by `min_frame_fraction`; a defect hidden by
 clipped highlights in some frames needs a lower fraction.
 
-**Cost.** About 7 s per 24 MP frame on one core (dominated by medians), and
+**Cost.** About 10 s per 24 MP frame on one core (dominated by medians), and
 under 0.1 s for either corrector.
 
 ## API

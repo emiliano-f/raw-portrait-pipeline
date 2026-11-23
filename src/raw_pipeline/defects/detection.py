@@ -67,7 +67,7 @@ class _LineAccumulator:
 
     def add(self, data: NDArray[np.float32]) -> NDArray[np.bool_]:
         """Score one frame; return its ``(H, W)`` mask of photosites on outlier segments."""
-        z = np.abs(line_segment_z(data, self._segment_px))
+        z = np.abs(line_segment_z(data, self._segment_px, self._threshold))
         flagged = z > self._threshold
         if self._hits is None or self._score_sum is None:
             self._hits = np.zeros(z.shape, dtype=np.int64)
