@@ -244,3 +244,12 @@ def test_equivalent_yaml_keys_are_duplicates(text: str) -> None:
 def test_bare_equals_key_parses() -> None:
     text = "a: {=: x, b: y}\n"
     assert yaml.load(text, Loader=_UniqueKeyLoader) == yaml.safe_load(text)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("highlight_rolloff_start_ev", 0.0), ("highlight_rolloff_start_ev", 0.5), ("shadow_lift_ev", 2.5)],
+)
+def test_tone_curve_limits(field: str, value: float) -> None:
+    with pytest.raises(ConfigError, match=f"tone\\.{field}"):
+        parse_config({"tone": {field: value}})

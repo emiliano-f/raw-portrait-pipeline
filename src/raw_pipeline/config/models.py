@@ -145,12 +145,15 @@ class ToneConfig(_Section):
 
     highlight_rolloff_start_ev: float = Field(
         default=-1.0,
-        description="Where the highlight shoulder starts, in EV relative to 1.0 (diffuse white).",
+        lt=0,
+        description="Where the highlight shoulder starts, in EV relative to 1.0 (diffuse white); must be below 0.",
     )
     highlight_rolloff_ev: float = Field(
         default=1.5, gt=0, description="Scene range above the shoulder compressed into the output range, in EV."
     )
-    shadow_lift_ev: float = Field(default=0.3, ge=0, description="Maximum lift applied to deep shadows, in EV.")
+    shadow_lift_ev: float = Field(
+        default=0.3, ge=0, le=2.0, description="Maximum lift applied to deep shadows, in EV (0 to 2)."
+    )
     shadow_pivot_luminance: float = Field(
         default=0.05, gt=0, description="Scene-linear luminance below which shadows are lifted."
     )
