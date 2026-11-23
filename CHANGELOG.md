@@ -29,3 +29,5 @@ All notable changes to this project are documented here. Format: [Keep a Changel
   `none` and `openai_compatible` providers (standard-library HTTP, HTTPS only except
   localhost; `qa.endpoint` and `qa.model` required, no vendor defaults); missing key or
   API errors skip QA with a warning; flags in `qa.*` CSV columns.
+- Runtime and CLI: component discovery, pipeline factory, serial/parallel batch runner,
+  observers, defect detection service, `raw-pipeline process` and `raw-pipeline detect-defects`.
