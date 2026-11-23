@@ -22,3 +22,6 @@ All notable changes to this project are documented here. Format: [Keep a Changel
   `center_weighted` metering with EV clamp.
 - `tone` stage (EV exposure, C1 highlight shoulder and shadow lift on luminance) and
   `retouch` stage with `none` and `frequency_separation` retouchers (face-mesh skin mask).
+- Export and report: `jpeg` and 16-bit `tiff` exporters (sRGB ICC, descriptive EXIF,
+  GPS stripped by default, no silent overwrite, byte-identical reruns), `export` and
+  `report` stages, `csv` and `contact_sheet` batch reporters.
