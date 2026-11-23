@@ -62,3 +62,10 @@ def test_rationals_and_ascii() -> None:
     exposure = next(f for f in exif_fields(CANON_EXIF) if f.tag == ExifTags.Base.ExposureTime)
     assert exposure.value == Fraction(1, 250)
     assert ascii_text("Señal") == "Se?al"
+
+
+def test_gps_read_back_from_raw_metadata_survives_jpeg_export() -> None:
+    info = ExifInfo(gps={"GPSLatitudeRef": "S", "GPSLatitude": "24.0,11.0,30.5", "GPSAltitude": "1250.5"})
+    gps = _read_back(jpeg_exif_bytes(info, keep_gps=True)).get_ifd(ExifTags.IFD.GPSInfo)
+    assert [float(v) for v in gps[ExifTags.GPS.GPSLatitude]] == [24.0, 11.0, 30.5]
+    assert float(gps[ExifTags.GPS.GPSAltitude]) == 1250.5
