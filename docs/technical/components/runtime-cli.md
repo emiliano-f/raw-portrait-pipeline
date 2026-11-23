@@ -54,8 +54,9 @@ flowchart LR
    before any image is touched.
 3. Discovery always passes the output folder in `exclude_dirs`, so outputs are never
    re-read as inputs, even when the output folder sits inside the input folder.
-   Then any input whose output stem (`<input stem><export.filename_suffix>`) matches a
-   `report.*_filename` stem or a contact sheet page (`contact_sheet-N`), case-insensitively,
+   Then any input whose output stem (`<input stem><export.filename_suffix>`) matches,
+   case-insensitively, the file stem of a reporter enabled in `report.reporters`
+   (`report.<name>_filename`) or a contact sheet page (`contact_sheet-N`),
    is a usage error (exit 2), even with `--overwrite`: `contact_sheet.CR2` would
    otherwise collide with `contact_sheet.jpg`.
 4. `PipelineFactory` builds the stages listed in `pipeline.stages`, in that order,

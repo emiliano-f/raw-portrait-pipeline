@@ -12,8 +12,21 @@ def _config(**report: str) -> AppConfig:
     return AppConfig.model_validate({"report": report})
 
 
-def test_report_filenames_lists_every_filename_field() -> None:
+def test_report_filenames_lists_the_enabled_reporters_files() -> None:
     assert report_filenames(_config()) == ("report.csv", "contact_sheet.jpg")
+
+
+def test_report_name_collisions_ignore_disabled_reporters() -> None:
+    sources = [Path("report.CR2"), Path("contact_sheet.CR2"), Path("contact_sheet-2.CR2")]
+    csv_only = AppConfig.model_validate({"report": {"reporters": ["csv"]}})
+    assert report_filenames(csv_only) == ("report.csv",)
+    assert report_name_collisions(sources, csv_only) == ["report.CR2 -> report.csv"]
+    sheet_only = AppConfig.model_validate({"report": {"reporters": ["contact_sheet"]}})
+    assert report_name_collisions(sources, sheet_only) == [
+        "contact_sheet.CR2 -> contact_sheet.jpg",
+        "contact_sheet-2.CR2 -> contact sheet page contact_sheet-2",
+    ]
+    assert report_name_collisions(sources, AppConfig.model_validate({"report": {"reporters": []}})) == []
 
 
 @pytest.mark.parametrize(

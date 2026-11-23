@@ -11,7 +11,14 @@ from raw_pipeline import cli
 from raw_pipeline.config.models import AppConfig
 from raw_pipeline.runtime import app
 from raw_pipeline.runtime.components import ComponentRegistries
-from tests.unit.runtime.fakes import EmptyDetector, FakeDecoder, FakeServices, make_registries, write_inputs
+from tests.unit.runtime.fakes import (
+    EmptyDetector,
+    FakeDecoder,
+    FakeServices,
+    FakeSummary,
+    make_registries,
+    write_inputs,
+)
 
 
 class Run:
@@ -254,15 +261,32 @@ def test_detect_defects_checks_output_before_reading_frames(
     assert services.detectors == []
 
 
-@pytest.mark.parametrize("name", ["contact_sheet.CR2", "report.CR2"])
+def _enable_reporters(run: Run, config_path: Path, *names: str) -> None:
+    for name in names:
+        run.registries.reporters.register(name)(FakeSummary)
+    data = yaml.safe_load(config_path.read_text())
+    data["report"]["reporters"] = list(names)
+    config_path.write_text(yaml.safe_dump(data))
+
+
+@pytest.mark.parametrize(("name", "reporter"), [("contact_sheet.CR2", "contact_sheet"), ("report.CR2", "csv")])
 def test_process_refuses_inputs_named_like_report_files(
-    run: Run, input_dir: Path, config_path: Path, tmp_path: Path, name: str
+    run: Run, input_dir: Path, config_path: Path, name: str, reporter: str
 ) -> None:
+    _enable_reporters(run, config_path, reporter)
     write_inputs(input_dir, {name: b"x"})
-    out = tmp_path / "out"
+    out = input_dir.parent / "out"
     assert run("process", input_dir, out, "--config", config_path, "--overwrite") == 2
     assert name in run.err.getvalue()
     assert not out.exists()
+
+
+def test_process_allows_report_names_of_disabled_reporters(
+    run: Run, input_dir: Path, config_path: Path, tmp_path: Path
+) -> None:
+    _enable_reporters(run, config_path, "csv")
+    write_inputs(input_dir, {"contact_sheet.CR2": b"x"})
+    assert run("process", input_dir, tmp_path / "out", "--config", config_path) == 0
 
 
 def test_process_warns_about_stale_contact_sheet_pages(
