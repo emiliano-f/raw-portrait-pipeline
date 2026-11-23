@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 import pytest
@@ -19,6 +20,7 @@ from raw_pipeline.detection.mediapipe_detector import (
     FACE_LANDMARKER_MODEL,
     LANDMARK_SCHEME,
     MediaPipeDetector,
+    MediaPipeTasksBackend,
     RawDetection,
     assign_meshes,
     default_model_dir,
@@ -109,6 +111,31 @@ def test_missing_model_raises_detection_error(tmp_path: Path) -> None:
     pytest.importorskip("mediapipe")
     with pytest.raises(DetectionError, match="model not found"):
         MediaPipeDetector(0.5, model_dir=tmp_path).detect(PREVIEW)
+
+
+def test_real_backend_clips_landmarks_to_preview(monkeypatch: pytest.MonkeyPatch) -> None:
+    vision = pytest.importorskip("mediapipe.tasks.python.vision")
+
+    class _Point:
+        def __init__(self, x: float, y: float) -> None:
+            self.x, self.y = x, y
+
+    class _Result:
+        face_landmarks: ClassVar = [[_Point(-0.1, 0.5), _Point(0.5, 1.2), _Point(0.25, 0.75)]]
+
+    class _Task:
+        def __enter__(self) -> _Task:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            pass
+
+        def detect(self, _image: object) -> _Result:
+            return _Result()
+
+    monkeypatch.setattr(vision.FaceLandmarker, "create_from_options", lambda *_: _Task())
+    meshes = MediaPipeTasksBackend(default_model_dir(), 0.5, 1).detect_meshes(PREVIEW)
+    np.testing.assert_allclose(meshes[0], [[0, 120], [160, 240], [80, 180]])
 
 
 def _real_mediapipe() -> MediaPipeDetector:

@@ -130,8 +130,9 @@ class MediaPipeTasksBackend:
             raise DetectionError(msg) from exc
         height, width = preview.shape[:2]
         scale = np.asarray([width, height], dtype=np.float32)
+        # MediaPipe extrapolates landmarks of faces cut by the frame edge; keep them on the preview.
         return [
-            (np.asarray([(p.x, p.y) for p in face], dtype=np.float32) * scale).astype(np.float32)
+            np.clip(np.asarray([(p.x, p.y) for p in face], dtype=np.float32) * scale, 0.0, scale).astype(np.float32)
             for face in result.face_landmarks
         ]
 
