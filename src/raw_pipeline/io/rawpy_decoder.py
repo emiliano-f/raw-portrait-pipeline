@@ -284,6 +284,7 @@ class RawpyHandle:
             "black_level": "/".join(str(v) for v in cfa.black_level),
             "white_level": cfa.white_level,
             "white_scale": scale,
+            "adjust_maximum_thr": NO_MAXIMUM_ADJUSTMENT,
             "flip": self._flip(),
             "width": int(image.shape[1]),
             "height": int(image.shape[0]),

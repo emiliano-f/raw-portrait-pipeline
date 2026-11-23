@@ -39,6 +39,9 @@ flowchart LR
   LibRaw's default `user_flip` (camera orientation). The file on disk is never
   written; each `develop` overwrites the whole buffer, so developing the
   corrected and the uncorrected CFA from the same handle is safe.
+- **No per-image maximum**: `adjust_maximum_thr=0` stops LibRaw from lowering
+  the white level to the brightest value found in each file, so 1.0 means the
+  sensor white level in every image (recorded as `decode.adjust_maximum_thr`).
 - **Normalisation**: the 16-bit output is divided by 65535, so 1.0 is the white
   level of the least-amplified channel after black subtraction and WB. With
   `highlight_mode: clip` LibRaw normalises the WB multipliers by their minimum,
@@ -79,10 +82,13 @@ version is present). Unreadable metadata logs a warning and yields an empty
 - `write_defect_map(path, defect_map, overwrite=False)` writes a standalone,
   loadable partial config (`defects: {map: [...]}`), one flow-style entry per
   defect, atomically.
-- `merge_defect_map_into_config(config_path, defect_map, method=None)` replaces
-  `defects.map` (and optionally `defects.method`), keeps every other key and
-  their order, validates the result with `parse_config` before replacing the
-  file atomically. YAML comments are not preserved (PyYAML).
+- `merge_defect_map_into_config(config_path, defect_map, method=None,
+  output_path=None, overwrite=False)` replaces `defects.map` (and optionally
+  `defects.method`), keeps every other key and their order, validates the
+  result with `parse_config`, then writes atomically. YAML comments are lost
+  (PyYAML), so an existing file is never rewritten silently: write to a new
+  `output_path`, or pass `overwrite=True` to replace the target. Missing
+  targets are created.
 
 ### Decode stage
 
@@ -90,12 +96,14 @@ version is present). Unreadable metadata logs a warning and yields an empty
 `defects.method`) → `develop`. Records:
 
 - `decode.*`: decoder parameters (`demosaic`, `highlight_mode`, WB multipliers,
-  black/white level, `white_scale`, `flip`, `libraw_version`, size) and
+  black/white level, `white_scale`, `adjust_maximum_thr`, `flip`, `libraw_version`, size) and
   `before_preview`.
 - `defects.method`, `defects.corrected_pixel_count`, `defects.count`.
 
-Artifacts (only when `report` is in `pipeline.stages`, to avoid a second
-full-resolution demosaic otherwise):
+Artifacts are produced **only when `report` is in `pipeline.stages`**: they
+cost a second full-resolution demosaic and only the report consumes them.
+Without `report`, `decode.before_preview` is `false` and neither artifact is
+set.
 
 - `BEFORE_IMAGE`: uncorrected development downscaled (area) to
   `decode.before_preview_long_edge_px`. When no photosite was replaced

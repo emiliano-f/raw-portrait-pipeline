@@ -93,6 +93,8 @@ def test_develop_writes_the_cfa_into_the_buffer_and_uses_linear_camera_wb() -> N
     np.testing.assert_allclose(out.image[0, 3], 7 / OUTPUT_MAX, rtol=1e-6)
     assert out.params["highlight_mode"] == "clip"
     assert out.params["white_scale"] == 1.0
+    assert out.params["adjust_maximum_thr"] == 0.0
+    assert kwargs["adjust_maximum_thr"] == 0.0
 
 
 def test_develop_undoes_libraw_headroom_for_non_clip_modes() -> None:

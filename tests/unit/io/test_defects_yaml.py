@@ -44,7 +44,7 @@ def test_merge_preserves_other_keys(tmp_path: Path) -> None:
         "  detection:\n    outlier_threshold_sigma: 7.0\n",
         encoding="utf-8",
     )
-    merge_defect_map_into_config(path, DEFECTS)
+    merge_defect_map_into_config(path, DEFECTS, overwrite=True)
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert list(data) == ["tone", "defects"]
     assert data["tone"] == {"highlight_rolloff_ev": 2.0}
@@ -67,7 +67,7 @@ def test_merge_rejects_bad_files_without_touching_them(tmp_path: Path, content: 
     path = tmp_path / "config.yaml"
     path.write_text(content, encoding="utf-8")
     with pytest.raises(ConfigError):
-        merge_defect_map_into_config(path, DEFECTS)
+        merge_defect_map_into_config(path, DEFECTS, overwrite=True)
     assert path.read_text(encoding="utf-8") == content
 
 
@@ -76,5 +76,28 @@ def test_merge_validates_before_writing(tmp_path: Path) -> None:
     content = "tone:\n  no_such_key: 1\n"
     path.write_text(content, encoding="utf-8")
     with pytest.raises(ConfigError):
+        merge_defect_map_into_config(path, DEFECTS, overwrite=True)
+    assert path.read_text(encoding="utf-8") == content
+
+
+def test_merge_never_rewrites_an_existing_config_silently(tmp_path: Path) -> None:
+    path = tmp_path / "config.yaml"
+    content = "# my notes\ntone:\n  highlight_rolloff_ev: 2.0\n"
+    path.write_text(content, encoding="utf-8")
+    with pytest.raises(OutputExistsError):
         merge_defect_map_into_config(path, DEFECTS)
     assert path.read_text(encoding="utf-8") == content
+
+
+def test_merge_to_a_new_path_leaves_the_source_untouched(tmp_path: Path) -> None:
+    path = tmp_path / "config.yaml"
+    content = "# my notes\ntone:\n  highlight_rolloff_ev: 2.0\n"
+    path.write_text(content, encoding="utf-8")
+    out = merge_defect_map_into_config(path, DEFECTS, output_path=tmp_path / "config.defects.yaml")
+    assert out == tmp_path / "config.defects.yaml"
+    assert path.read_text(encoding="utf-8") == content
+    merged = load_config(out)
+    assert merged.tone.highlight_rolloff_ev == 2.0
+    assert to_defect_map(merged.defects.map) == DEFECTS
+    with pytest.raises(OutputExistsError):
+        merge_defect_map_into_config(path, DEFECTS, output_path=out)

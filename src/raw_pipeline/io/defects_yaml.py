@@ -91,21 +91,39 @@ def _read_mapping(path: Path) -> dict[str, Any]:
     return data
 
 
-def merge_defect_map_into_config(config_path: Path, defect_map: DefectMap, *, method: str | None = None) -> Path:
-    """Replace ``defects.map`` in ``config_path`` (created if missing), keeping every other key.
+def merge_defect_map_into_config(
+    config_path: Path,
+    defect_map: DefectMap,
+    *,
+    method: str | None = None,
+    output_path: Path | None = None,
+    overwrite: bool = False,
+) -> Path:
+    """Write ``config_path`` with ``defects.map`` replaced, keeping every other key.
 
-    Key order is preserved; YAML comments are not (PyYAML does not keep them).
-    The merged document is validated before the file is replaced atomically,
-    so an invalid result never reaches disk.
+    Key order is preserved; YAML comments are not (PyYAML does not keep
+    them), so an existing file is never rewritten silently: the result goes
+    to ``output_path`` (default ``config_path``) and an existing target is
+    replaced only with ``overwrite=True``. The merged document is validated
+    before the target is written atomically, so an invalid result never
+    reaches disk.
 
     Args:
-        config_path: The YAML configuration file.
+        config_path: The YAML configuration to read (may be missing: defaults).
         defect_map: Defects to store.
         method: Also set ``defects.method`` when given.
+        output_path: Where to write the merged config; ``config_path`` if ``None``.
+        overwrite: Allow replacing an existing target file.
+
+    Returns:
+        The path written.
 
     Raises:
+        OutputExistsError: If the target exists and ``overwrite`` is false.
         ConfigError: If the file cannot be parsed or the merged config is invalid.
     """
+    target = config_path if output_path is None else output_path
+    ensure_writable(target, overwrite=overwrite)
     data = _read_mapping(config_path)
     defects = data.get("defects") or {}
     if not isinstance(defects, dict):
@@ -117,5 +135,5 @@ def merge_defect_map_into_config(config_path: Path, defect_map: DefectMap, *, me
     defects["map"] = _map_entries(defect_map)
     data["defects"] = defects
     parse_config(data)
-    _atomic_write(config_path, _dump(data))
-    return config_path
+    _atomic_write(target, _dump(data))
+    return target
