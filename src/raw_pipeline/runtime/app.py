@@ -18,7 +18,7 @@ from raw_pipeline.runtime.batch import BatchResult, BatchRunner, default_workers
 from raw_pipeline.runtime.components import ComponentRegistries, load_components
 from raw_pipeline.runtime.defect_detection import DefectDetectionResult, DefectDetectionService
 from raw_pipeline.runtime.factory import PipelineFactory
-from raw_pipeline.runtime.report_files import report_name_collisions, stale_contact_sheet_pages
+from raw_pipeline.runtime.report_files import duplicate_output_stems, report_name_collisions, stale_contact_sheet_pages
 from raw_pipeline.runtime.services import RuntimeServices
 
 logger = logging.getLogger(__name__)
@@ -89,6 +89,10 @@ def process_batch(
     sources = (services or RuntimeServices.builtin()).discover(request.input_dir, exclude_dirs=(request.output_dir,))
     if not sources:
         msg = f"no RAW files found in {request.input_dir}"
+        raise InputError(msg)
+    duplicates = duplicate_output_stems(sources)
+    if duplicates:
+        msg = "several inputs share an output name (rename them): " + "; ".join(duplicates)
         raise InputError(msg)
     clashes = report_name_collisions(sources, config)
     if clashes:

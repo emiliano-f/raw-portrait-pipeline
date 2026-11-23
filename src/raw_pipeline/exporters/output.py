@@ -29,8 +29,8 @@ def write_output(path: Path, write: Callable[[BinaryIO], None], *, overwrite: bo
     except OSError as exc:
         msg = f"cannot create {path.parent}: {exc}"
         raise ExportError(msg) from exc
-    target = _open_temporary(path) if overwrite else _open_exclusive(path)
-    handle = target.open("r+b")
+    # The handle from the exclusive create is the one written: reopening by name could follow a swapped-in symlink.
+    target, handle = _open_temporary(path) if overwrite else _open_exclusive(path)
     try:
         with handle:
             write(handle)
@@ -45,24 +45,24 @@ def write_output(path: Path, write: Callable[[BinaryIO], None], *, overwrite: bo
     return path
 
 
-def _open_exclusive(path: Path) -> Path:
+def _open_exclusive(path: Path) -> tuple[Path, BinaryIO]:
     try:
-        path.open("xb").close()
+        handle = path.open("xb")
     except FileExistsError as exc:
         msg = f"{path} already exists; pass --overwrite to replace it"
         raise OutputExistsError(msg) from exc
     except OSError as exc:
         msg = f"cannot create {path}: {exc}"
         raise ExportError(msg) from exc
-    return path
+    return path, handle
 
 
-def _open_temporary(path: Path) -> Path:
+def _open_temporary(path: Path) -> tuple[Path, BinaryIO]:
     # Same directory (atomic replace), unique per writer, created with the umask's default mode.
     temporary = path.with_name(f".{path.name}.{os.getpid()}-{threading.get_ident()}.partial")
     try:
-        temporary.open("wb").close()
+        handle = temporary.open("xb")  # exclusive: never follows a planted symlink
     except OSError as exc:
         msg = f"cannot create {path}: {exc}"
         raise ExportError(msg) from exc
-    return temporary
+    return temporary, handle

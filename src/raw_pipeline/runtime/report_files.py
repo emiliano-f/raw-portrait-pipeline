@@ -58,3 +58,15 @@ def stale_contact_sheet_pages(output_dir: Path, config: AppConfig, written: Iter
 def _page_pattern(filename: str, flags: int = 0) -> re.Pattern[str]:
     base = Path(filename)
     return re.compile(rf"{re.escape(base.stem)}-[0-9]+{re.escape(base.suffix)}", flags)
+
+
+def duplicate_output_stems(sources: Sequence[Path]) -> list[str]:
+    """Describe inputs whose output names would clash (same stem, ignoring case).
+
+    ``IMG_1.CR2`` and ``img_1.cr2`` would both export to ``IMG_1.jpg`` on a
+    case-insensitive file system, and one export would silently replace the other.
+    """
+    by_stem: dict[str, list[str]] = {}
+    for source in sources:
+        by_stem.setdefault(source.stem.casefold(), []).append(source.name)
+    return [" / ".join(sorted(names)) for _, names in sorted(by_stem.items()) if len(names) > 1]

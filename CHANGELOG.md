@@ -4,6 +4,8 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-23
+
 ### Added
 
 - Core contracts: `ImageContext`, value objects, protocols for every extension point
@@ -40,3 +42,17 @@ All notable changes to this project are documented here. Format: [Keep a Changel
   samples (`tests/fixtures/` or `RAW_PIPELINE_SAMPLES`): output size and sRGB ICC,
   clipping, untouched inputs, overwrite refusal, byte-identical reruns, face target.
 - CI: lint, format, mypy, import contracts, tests with coverage and the strict docs build.
+
+### Security
+
+- QA over plain HTTP (localhost only) bypasses configured proxies, and an API key echoed by the service is redacted from notes, flags and warnings.
+- `--overwrite` temporary files are created exclusively, so a planted symlink is never followed.
+- `report.csv_filename` and `report.contact_sheet_filename` must be plain file names, so a report can never replace an input.
+
+### Fixed
+
+- Inputs whose names differ only in case (`IMG_1.CR2`, `img_1.cr2`) are rejected before processing instead of one export replacing the other.
+- `export.keep_gps: true` no longer breaks JPEG export for RAW files with GPS coordinates.
+
+[Unreleased]: https://github.com/emiliano-f/raw-portrait-pipeline/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/emiliano-f/raw-portrait-pipeline/releases/tag/v0.1.0

@@ -16,7 +16,7 @@ from enum import Enum
 from fractions import Fraction
 from typing import Final
 
-from PIL import ExifTags, Image, TiffImagePlugin
+from PIL import ExifTags, Image, TiffImagePlugin, TiffTags
 
 from raw_pipeline.core.values import ExifInfo, Scalar
 
@@ -107,7 +107,22 @@ def _add_gps(exif: Image.Exif, gps: Mapping[str, Scalar]) -> None:
         if tag is None or value is None:
             logger.debug("skipping GPS tag %s", name)
             continue
-        ifd[tag] = _pillow_value(value)
+        parsed = _gps_value(tag, value)
+        ifd[tag] = tuple(_pillow_value(v) for v in parsed) if isinstance(parsed, tuple) else _pillow_value(parsed)
+
+
+_RATIONAL_TYPES: Final = frozenset({TiffTags.RATIONAL, TiffTags.SIGNED_RATIONAL})
+
+
+def _gps_value(tag: int, value: Scalar) -> Scalar | tuple[float, ...]:
+    """Turn the reader's comma-joined text back into numbers for rational GPS tags."""
+    if not isinstance(value, str) or TiffTags.lookup(tag, ExifTags.IFD.GPSInfo).type not in _RATIONAL_TYPES:
+        return value
+    try:
+        numbers = tuple(float(part) for part in value.split(","))
+    except ValueError:
+        return value
+    return numbers[0] if len(numbers) == 1 else numbers
 
 
 def jpeg_exif_bytes(info: ExifInfo, *, keep_gps: bool) -> bytes:

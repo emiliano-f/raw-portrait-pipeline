@@ -70,8 +70,15 @@ class RefuseRedirects(urllib.request.HTTPRedirectHandler):
 
 
 def open_url(req: urllib.request.Request, timeout_s: float) -> http.client.HTTPResponse:
-    """Open ``req`` with an opener that refuses redirects."""
-    response: http.client.HTTPResponse = urllib.request.build_opener(RefuseRedirects()).open(req, timeout=timeout_s)
+    """Open ``req`` with an opener that refuses redirects.
+
+    Plain-HTTP requests (only allowed for local endpoints) bypass any configured
+    proxy, so the preview and bearer token never cross the network in cleartext.
+    """
+    handlers: list[urllib.request.BaseHandler] = [RefuseRedirects()]
+    if req.type == "http":
+        handlers.append(urllib.request.ProxyHandler({}))
+    response: http.client.HTTPResponse = urllib.request.build_opener(*handlers).open(req, timeout=timeout_s)
     return response
 
 
