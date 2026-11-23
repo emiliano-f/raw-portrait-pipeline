@@ -97,4 +97,5 @@ limit.
 ::: raw_pipeline.qa.openai_compatible
 ::: raw_pipeline.qa.preview
 ::: raw_pipeline.qa.response
+::: raw_pipeline.qa.target
 ::: raw_pipeline.qa.transport
