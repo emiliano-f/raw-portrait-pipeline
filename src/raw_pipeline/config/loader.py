@@ -12,7 +12,6 @@ from pydantic import ValidationError
 from raw_pipeline.config.models import AppConfig
 from raw_pipeline.core.errors import ConfigError
 
-
 _MERGE_TAG = "tag:yaml.org,2002:merge"
 
 
