@@ -176,3 +176,6 @@ def _check_dirs(input_dir: Path, output_dir: Path) -> None:
     if output_dir.resolve() == input_dir.resolve():
         msg = "the output folder must differ from the input folder (inputs are read-only)"
         raise InputError(msg)
+    if output_dir.exists() and not output_dir.is_dir():
+        msg = f"output path {output_dir} exists and is not a folder"
+        raise InputError(msg)

@@ -99,7 +99,7 @@ def test_process_does_not_read_its_own_output_folder(run: Run, input_dir: Path, 
 
 @pytest.mark.parametrize(
     "case",
-    ["missing_input", "same_dir", "no_raws", "unknown_component", "bad_config"],
+    ["missing_input", "same_dir", "output_is_file", "no_raws", "unknown_component", "bad_config"],
 )
 def test_process_usage_errors_exit_two_before_writing(
     run: Run, input_dir: Path, config_path: Path, tmp_path: Path, case: str
@@ -110,6 +110,8 @@ def test_process_usage_errors_exit_two_before_writing(
         args[1] = tmp_path / "nope"
     elif case == "same_dir":
         args[2] = input_dir
+    elif case == "output_is_file":
+        out.write_text("not a folder", encoding="utf-8")
     elif case == "no_raws":
         args[1] = tmp_path / "empty"
         (tmp_path / "empty").mkdir()
@@ -122,7 +124,7 @@ def test_process_usage_errors_exit_two_before_writing(
 
     assert run(*args) == 2
     assert run.err.getvalue().startswith("error: ")
-    assert not out.exists()
+    assert not out.is_dir()
 
 
 def test_invalid_workers_is_an_argparse_error(run: Run, input_dir: Path, tmp_path: Path) -> None:
