@@ -32,11 +32,20 @@ _T: Final = CFA_TILE_SIZE
 LINE_REACH_STEPS: Final = 3
 """Same-colour neighbours taken on each side for line residuals; the median stays clean for bands up to 4 px wide."""
 
+LINE_REACH_PX: Final = LINE_REACH_STEPS * _T
+"""Columns closer than this to the sensor border may be scored on one side only."""
+
+MIN_SIDE_NEIGHBOURS: Final = 2
+"""Usable neighbours a side needs; a single neighbour may itself belong to the band."""
+
 LINE_SIDES: Final = tuple(tuple((0, sign * k * _T) for k in range(1, LINE_REACH_STEPS + 1)) for sign in (-1, 1))
 """Same-colour neighbours of a photosite along its row, left side then right side, used to detect column defects."""
 
 RING_NEIGHBOURS: Final = tuple((dy, dx) for dy in (-_T, 0, _T) for dx in (-_T, 0, _T) if (dy, dx) != (0, 0))
 """The 8 nearest same-colour neighbours, used to detect pixel defects."""
+
+MAX_IGNORED_RING_FRACTION: Final = 1 / 3
+"""Fraction of a pixel's in-frame ring neighbours that may lie on detected lines before it is no longer scored."""
 
 
 def same_colour_residual(
@@ -44,6 +53,7 @@ def same_colour_residual(
     offsets: tuple[tuple[int, int], ...],
     ignore: NDArray[np.bool_] | None = None,
     missing: float = 0.0,
+    min_valid: int = 1,
 ) -> NDArray[np.float32]:
     """Return ``data`` minus the median of its same-colour neighbours at ``offsets``.
 
@@ -56,7 +66,8 @@ def same_colour_residual(
         offsets: ``(dy, dx)`` neighbour offsets, multiples of ``CFA_TILE_SIZE``.
         ignore: Optional ``(H, W)`` mask of photosites never used as neighbours
             (e.g. lines already found).
-        missing: Residual of photosites without any usable neighbour.
+        missing: Residual of photosites with fewer than ``min_valid`` usable neighbours.
+        min_valid: Usable neighbours needed for a reference value.
     """
     height, width = data.shape
     pad = max(abs(v) for offset in offsets for v in offset)
@@ -69,6 +80,7 @@ def same_colour_residual(
             [padded[pad + y0 + dy : pad + y1 + dy, pad + dx : pad + width + dx] for dy, dx in offsets]
         )
         reference = _nan_median_first_axis(neighbours)
+        reference[np.count_nonzero(~np.isnan(neighbours), axis=0) < min_valid] = np.nan
         out[y0:y1] = np.where(np.isnan(reference), np.float32(missing), data[y0:y1] - reference)
     return out
 
@@ -118,7 +130,7 @@ def _side_segment_z(
     segment_px: int,
     ignore: NDArray[np.bool_] | None,
 ) -> NDArray[np.float32]:
-    residual = same_colour_residual(data, side, ignore, missing=np.nan)
+    residual = same_colour_residual(data, side, ignore, missing=np.nan, min_valid=MIN_SIDE_NEIGHBOURS)
     height = data.shape[0]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)  # columns at the border have no neighbour on one side
@@ -135,7 +147,10 @@ def _line_z(data: NDArray[np.float32], segment_px: int, ignore: NDArray[np.bool_
     left, right = (_side_segment_z(data, side, segment_px, ignore) for side in LINE_SIDES)
     agree = np.sign(left) == np.sign(right)
     both = np.where(agree, np.sign(left) * np.minimum(np.abs(left), np.abs(right)), np.float32(0.0))
-    one = np.where(np.isnan(left), right, left)
+    width = data.shape[1]
+    columns = np.arange(width)
+    near_border = (columns < LINE_REACH_PX) | (columns >= width - LINE_REACH_PX)
+    one = np.where(near_border, np.where(np.isnan(left), right, left), np.float32(0.0))
     return np.nan_to_num(np.where(np.isnan(left) | np.isnan(right), one, both)).astype(np.float32)
 
 
@@ -147,30 +162,46 @@ def line_segment_z(data: NDArray[np.float32], segment_px: int, threshold_sigma: 
     standardised across columns of the same parity (same CFA colours), per
     side. A defect stands out from *both* sides, so the score is the smaller
     of the two z-scores when they agree in sign and 0 otherwise: a sharp
-    scene edge, which differs from one side only, scores 0. Columns with no
-    usable neighbour on one side (sensor border) use the other side.
+    scene edge, which differs from one side only, scores 0. A side with
+    fewer than :data:`MIN_SIDE_NEIGHBOURS` usable neighbours counts as
+    missing; within :data:`LINE_REACH_PX` of the sensor border the other
+    side is used alone, elsewhere the score is 0 (a healthy column beside a
+    wide band must not be judged on its far side alone).
 
     Segments scoring above ``threshold_sigma`` are then excluded as
     neighbours and the scores recomputed, until no new segment is flagged
     (at most :data:`MAX_LINE_PASSES` passes). Each pass uncovers the next
     column of a band that the previous one hid, e.g. a band at the sensor
     border whose inner columns only had defective neighbours on one side.
+    Each segment keeps its strongest score over all passes, so a segment
+    flagged once stays flagged.
 
     Returns:
         ``(ceil(H / segment_px), W)`` robust z-scores.
     """
     height = data.shape[0]
-    z = _line_z(data, segment_px, None)
-    flagged = np.abs(z) > threshold_sigma
+    best = _line_z(data, segment_px, None)
+    flagged = np.abs(best) > threshold_sigma
     for _ in range(MAX_LINE_PASSES - 1):
         if not flagged.any():
             break
         z = _line_z(data, segment_px, np.repeat(flagged, segment_px, axis=0)[:height])
-        grown = flagged | (np.abs(z) > threshold_sigma)
+        best = np.where(np.abs(z) > np.abs(best), z, best)
+        grown = np.abs(best) > threshold_sigma
         if np.array_equal(grown, flagged):
             break
         flagged = grown
-    return z
+    return best
+
+
+def _ring_count(mask: NDArray[np.bool_]) -> NDArray[np.int64]:
+    """Number of :data:`RING_NEIGHBOURS` of every photosite that are inside the frame and set in ``mask``."""
+    height, width = mask.shape
+    padded = np.pad(mask, _T, constant_values=False)
+    count = np.zeros(mask.shape, dtype=np.int64)
+    for dy, dx in RING_NEIGHBOURS:
+        count += padded[_T + dy : _T + height + dy, _T + dx : _T + width + dx]
+    return count
 
 
 def pixel_z(data: NDArray[np.float32], ignore: NDArray[np.bool_] | None = None) -> NDArray[np.float32]:
@@ -180,8 +211,15 @@ def pixel_z(data: NDArray[np.float32], ignore: NDArray[np.bool_] | None = None) 
         data: ``(H, W)`` raw values as float32.
         ignore: Photosites not used as neighbours (lines flagged in this frame),
             so pixels where two hot lines cross are not mistaken for pixel defects.
+            A photosite with more than :data:`MAX_IGNORED_RING_FRACTION` of
+            its in-frame neighbours ignored scores 0: its remaining neighbours all lie on
+            one side, where a scene edge could pass for a defect.
     """
     residual = same_colour_residual(data, RING_NEIGHBOURS, ignore)
+    if ignore is not None:
+        ignored = _ring_count(ignore)
+        in_frame = _ring_count(np.ones_like(ignore))
+        residual[ignored > MAX_IGNORED_RING_FRACTION * in_frame] = 0.0
     z = np.empty_like(residual)
     for py in range(_T):
         for px in range(_T):
