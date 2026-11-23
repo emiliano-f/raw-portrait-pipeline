@@ -12,3 +12,5 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Configuration models, YAML loading and component-name validation; `config.example.yaml`.
 - Contract test suites for stages, defect correctors, exporters, face detectors,
   metering strategies and QA providers.
+- Runtime and CLI: component discovery, pipeline factory, serial/parallel batch runner,
+  observers, defect detection service, `raw-pipeline process` and `raw-pipeline detect-defects`.
