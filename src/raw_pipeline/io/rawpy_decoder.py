@@ -214,11 +214,20 @@ class RawpyHandle:
         self._settings = settings
 
     def read_cfa(self) -> CFAFrame:
-        """Return a copy of the visible Bayer data with its layout and levels."""
-        colors = np.asarray(self._raw.raw_colors_visible)
+        """Return a copy of the visible Bayer data with its layout and levels.
+
+        Raises:
+            DecodeError: If LibRaw cannot unpack the sensor data (corrupt file).
+        """
+        try:
+            colors = np.asarray(self._raw.raw_colors_visible)
+            data = np.array(self._raw.raw_image_visible, dtype=np.uint16, copy=True)
+        except rawpy.LibRawError as exc:
+            msg = f"LibRaw could not unpack the sensor data: {exc}"
+            raise DecodeError(msg) from exc
         pattern = ((int(colors[0, 0]), int(colors[0, 1])), (int(colors[1, 0]), int(colors[1, 1])))
         return CFAFrame(
-            data=np.array(self._raw.raw_image_visible, dtype=np.uint16, copy=True),
+            data=data,
             pattern=pattern,
             color_desc=self._raw.color_desc.decode("ascii"),
             black_level=tuple(int(v) for v in self._raw.black_level_per_channel),

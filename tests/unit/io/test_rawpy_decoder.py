@@ -118,6 +118,21 @@ def test_develop_wraps_libraw_errors() -> None:
         h.develop(h.read_cfa())
 
 
+class CorruptLibRaw(FakeLibRaw):
+    @property  # type: ignore[override]
+    def raw_image_visible(self) -> NDArray[np.uint16]:
+        raise rawpy.LibRawDataError("data corrupted")
+
+    @raw_image_visible.setter
+    def raw_image_visible(self, value: NDArray[np.uint16]) -> None:
+        pass
+
+
+def test_read_cfa_wraps_unpack_errors() -> None:
+    with pytest.raises(DecodeError, match="unpack"):
+        handle(CorruptLibRaw()).read_cfa()
+
+
 @pytest.mark.parametrize(
     ("flip", "expected"),
     [(0, (2, 1)), (3, (9, 6)), (5, (1, 9)), (6, (6, 2))],
