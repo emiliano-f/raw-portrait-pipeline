@@ -43,8 +43,8 @@ class DefectMapWriter(Protocol):
 class DefectMapMerger(Protocol):
     """Replaces ``defects.map`` in an existing config file, keeping every other key."""
 
-    def __call__(self, defects: DefectMap, config_path: Path) -> None:
-        """Merge ``defects`` into ``config_path``."""
+    def __call__(self, defects: DefectMap, config_path: Path, *, overwrite: bool) -> Path:
+        """Merge ``defects`` into ``config_path``; refuses to rewrite an existing file unless asked."""
         ...
 
 
@@ -88,8 +88,9 @@ def _write_defect_map(defects: DefectMap, path: Path, *, overwrite: bool) -> Pat
     return cast("Path", resolve("raw_pipeline.io.defects_yaml", "write_defect_map")(path, defects, overwrite=overwrite))
 
 
-def _merge_defect_map(defects: DefectMap, config_path: Path) -> None:
-    resolve("raw_pipeline.io.defects_yaml", "merge_defect_map_into_config")(config_path, defects)
+def _merge_defect_map(defects: DefectMap, config_path: Path, *, overwrite: bool) -> Path:
+    merge = resolve("raw_pipeline.io.defects_yaml", "merge_defect_map_into_config")
+    return cast("Path", merge(config_path, defects, overwrite=overwrite))
 
 
 def _make_defect_detector(config: DefectDetectionConfig) -> DefectDetector:

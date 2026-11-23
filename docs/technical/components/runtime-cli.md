@@ -27,7 +27,9 @@ in raw sensor coordinates using the `defects.map` YAML form, then:
 - with `--output`: writes a standalone `.yaml`/`.yml` defects file (refused if it exists, unless `--overwrite`;
   the suffix is checked before any frame is read);
 - otherwise: asks `[y/N]` before replacing `defects.map` in the `--config` file
-  (`--yes` skips the question; no answer or end of input means no).
+  (`--yes` skips the question; no answer or end of input means no). Merging rewrites
+  the file and drops its YAML comments, so an existing config is only rewritten with
+  `--overwrite`; without it the command stops with exit 2 before reading any frame.
 
 It never modifies RAW files and writes nothing when no defect is found.
 

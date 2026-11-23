@@ -55,7 +55,9 @@ def build_parser() -> argparse.ArgumentParser:
     detect.add_argument("input_dir", type=Path, help="Folder of .CR2 files analysed as a batch.")
     detect.add_argument("--dark-frame", type=Path, default=None, help="Analyse this dark frame instead of the batch.")
     detect.add_argument("--output", type=Path, default=None, help="Write the defects to this YAML file.")
-    detect.add_argument("--overwrite", action="store_true", help="Replace an existing --output file.")
+    detect.add_argument(
+        "--overwrite", action="store_true", help="Replace an existing --output file, or rewrite --config when merging."
+    )
     detect.add_argument("--yes", action="store_true", help="Update the config file without asking.")
     return parser
 
@@ -116,7 +118,11 @@ def _detect(
     ask: Callable[[str], str],
 ) -> int:
     request = DetectDefectsRequest(
-        input_dir=args.input_dir, config_path=args.config, dark_frame=args.dark_frame, output=args.output
+        input_dir=args.input_dir,
+        config_path=args.config,
+        dark_frame=args.dark_frame,
+        output=args.output,
+        overwrite=args.overwrite,
     )
     result = detect_defects(request, registries=registries, services=services)
     out.write(f"analysed {len(result.frames_used)} frame(s), {len(result.frames_failed)} unreadable\n")

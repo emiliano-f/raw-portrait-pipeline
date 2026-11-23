@@ -59,12 +59,14 @@ class DetectDefectsRequest:
         config_path: YAML config; ``None`` uses the defaults.
         dark_frame: A single dark frame (lens cap on, same ISO) to analyse instead.
         output: Standalone defects file to write later; checked before any frame is read.
+        overwrite: Allow replacing ``output``, or rewriting ``config_path`` when merging.
     """
 
     input_dir: Path
     config_path: Path | None = None
     dark_frame: Path | None = None
     output: Path | None = None
+    overwrite: bool = False
 
 
 def process_batch(
@@ -132,8 +134,7 @@ def detect_defects(
     config = load_config(request.config_path)
     regs = load_components(registries)
     _check_decoder(config.decode.decoder, regs)
-    if request.output is not None:
-        _check_defects_output(request.output)
+    _check_destination(request.output, request.config_path, overwrite=request.overwrite)
     svc = services or RuntimeServices.builtin()
     if request.dark_frame is not None:
         if not request.dark_frame.is_file():
@@ -172,7 +173,7 @@ def save_defect_map(
         defects: Defects to save.
         output: Standalone YAML file; when ``None`` the config file is updated instead.
         config_path: Config file to update when ``output`` is ``None``.
-        overwrite: Allow replacing an existing ``output`` file.
+        overwrite: Allow replacing an existing ``output`` file, or rewriting ``config_path``.
         confirm: Asked before changing the config file; returns ``True`` to proceed.
         services: Lower-layer writers (built-ins by default).
 
@@ -180,19 +181,16 @@ def save_defect_map(
         The file written, or ``None`` when the user declined.
 
     Raises:
-        InputError: Neither ``output`` nor ``config_path`` was given.
+        InputError: No usable destination (see ``_check_destination``).
     """
     svc = services or RuntimeServices.builtin()
+    _check_destination(output, config_path, overwrite=overwrite)
     if output is not None:
-        _check_defects_output(output)
         return svc.write_defect_map(defects, output, overwrite=overwrite)
-    if config_path is None:
-        msg = "pass --output, or --config to update the config file"
-        raise InputError(msg)
+    assert config_path is not None
     if not confirm(f"Replace defects.map in {config_path} with {len(defects)} detected defect(s)?"):
         return None
-    svc.merge_defect_map(defects, config_path)
-    return config_path
+    return svc.merge_defect_map(defects, config_path, overwrite=overwrite)
 
 
 def _check_input_dir(input_dir: Path) -> None:
@@ -218,7 +216,18 @@ def _check_decoder(name: str, registries: ComponentRegistries) -> None:
         raise ConfigError(msg)
 
 
-def _check_defects_output(output: Path) -> None:
-    if output.suffix.lower() not in DEFECTS_FILE_SUFFIXES:
-        msg = f"--output must be a .yaml or .yml file, got {output}"
+def _check_destination(output: Path | None, config_path: Path | None, *, overwrite: bool) -> None:
+    if output is not None:
+        if output.suffix.lower() not in DEFECTS_FILE_SUFFIXES:
+            msg = f"--output must be a .yaml or .yml file, got {output}"
+            raise InputError(msg)
+        return
+    if config_path is None:
+        msg = "pass --output, or --config to update the config file"
+        raise InputError(msg)
+    if config_path.exists() and not overwrite:
+        msg = (
+            f"merging rewrites {config_path} and drops its YAML comments; pass --overwrite to allow it, "
+            "or --output defects.yaml to write a separate file"
+        )
         raise InputError(msg)

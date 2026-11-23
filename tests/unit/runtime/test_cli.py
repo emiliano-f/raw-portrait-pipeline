@@ -147,7 +147,7 @@ def test_detect_defects_prints_findings_and_merges_after_confirmation(
     before = _digests(input_dir)
     run.answers = ["y"]
 
-    assert run("detect-defects", input_dir, "--config", config_path) == 0
+    assert run("detect-defects", input_dir, "--config", config_path, "--overwrite") == 0
 
     text = run.out.getvalue()
     assert "analysed 3 frame(s), 0 unreadable" in text
@@ -165,13 +165,13 @@ def test_detect_defects_declined_writes_nothing(
     run: Run, input_dir: Path, config_path: Path, services: FakeServices, answers: list[str]
 ) -> None:
     run.answers = answers
-    assert run("detect-defects", input_dir, "--config", config_path) == 0
+    assert run("detect-defects", input_dir, "--config", config_path, "--overwrite") == 0
     assert services.merged == []
     assert "not written" in run.out.getvalue()
 
 
 def test_detect_defects_yes_skips_prompt(run: Run, input_dir: Path, config_path: Path, services: FakeServices) -> None:
-    assert run("detect-defects", input_dir, "--config", config_path, "--yes") == 0
+    assert run("detect-defects", input_dir, "--config", config_path, "--yes", "--overwrite") == 0
     assert run.questions == []
     assert len(services.merged) == 1
 
@@ -190,7 +190,7 @@ def test_detect_defects_dark_frame_uses_only_that_file(
     run: Run, input_dir: Path, config_path: Path, services: FakeServices
 ) -> None:
     dark = input_dir / "IMG_0002.CR2"
-    assert run("detect-defects", input_dir, "--config", config_path, "--dark-frame", dark, "--yes") == 0
+    assert run("detect-defects", input_dir, "--config", config_path, "--dark-frame", dark, "--yes", "--overwrite") == 0
     assert "analysed 1 frame(s)" in run.out.getvalue()
     assert services.detectors[0].frames == 1
 
@@ -199,7 +199,7 @@ def test_detect_defects_without_findings_writes_nothing(
     run: Run, input_dir: Path, config_path: Path, services: FakeServices
 ) -> None:
     services.detector_cls = EmptyDetector
-    assert run("detect-defects", input_dir, "--config", config_path) == 0
+    assert run("detect-defects", input_dir, "--config", config_path, "--overwrite") == 0
     assert "no defects found" in run.out.getvalue()
     assert run.questions == []
     assert services.merged == []
@@ -214,7 +214,7 @@ def test_detect_defects_needs_a_destination(input_dir: Path, services: FakeServi
 def test_detect_defects_fails_when_no_frame_is_readable(run: Run, tmp_path: Path, config_path: Path) -> None:
     folder = tmp_path / "bad"
     write_inputs(folder, {"A.CR2": b"BAD"})
-    assert run("detect-defects", folder, "--config", config_path) == 2
+    assert run("detect-defects", folder, "--config", config_path, "--overwrite") == 2
 
 
 def test_detect_defects_output_must_be_yaml(
@@ -231,7 +231,7 @@ def test_detect_defects_only_needs_the_decoder(input_dir: Path, config_path: Pat
     regs = ComponentRegistries.empty()
     regs.raw_decoders.register(FakeDecoder.name)(FakeDecoder)
     run = Run(regs, services)
-    assert run("detect-defects", input_dir, "--config", config_path, "--yes") == 0
+    assert run("detect-defects", input_dir, "--config", config_path, "--yes", "--overwrite") == 0
     assert len(services.merged) == 1
     assert run("detect-defects", input_dir, "--yes") == 2
     assert "decode.decoder" in run.err.getvalue()
@@ -241,7 +241,7 @@ def test_detect_defects_exits_one_when_some_frames_are_unreadable(
     run: Run, input_dir: Path, config_path: Path, services: FakeServices
 ) -> None:
     write_inputs(input_dir, {"IMG_0004.CR2": b"BAD"})
-    assert run("detect-defects", input_dir, "--config", config_path, "--yes") == 1
+    assert run("detect-defects", input_dir, "--config", config_path, "--yes", "--overwrite") == 1
     assert "analysed 3 frame(s), 1 unreadable" in run.out.getvalue()
     assert len(services.merged) == 1
 
@@ -285,3 +285,21 @@ def test_process_succeeds_when_stale_pages_cannot_be_listed(
     assert run("process", input_dir, tmp_path / "out", "--config", config_path, "--overwrite") == 0
     assert "could not check" in run.err.getvalue()
     assert "listing denied" in run.err.getvalue()
+
+
+def test_detect_defects_refuses_to_rewrite_the_config_without_overwrite(
+    run: Run, input_dir: Path, config_path: Path, services: FakeServices
+) -> None:
+    before = config_path.read_bytes()
+    assert run("detect-defects", input_dir, "--config", config_path, "--yes") == 2
+    assert "--overwrite" in run.err.getvalue()
+    assert services.detectors == []
+    assert services.merged == []
+    assert config_path.read_bytes() == before
+
+
+def test_detect_defects_passes_overwrite_to_the_merge(
+    run: Run, input_dir: Path, config_path: Path, services: FakeServices
+) -> None:
+    assert run("detect-defects", input_dir, "--config", config_path, "--yes", "--overwrite") == 0
+    assert services.merge_overwrite == [True]

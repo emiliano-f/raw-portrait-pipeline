@@ -231,6 +231,7 @@ class FakeServices:
         self.written: list[tuple[DefectMap, Path, bool]] = []
         self.merged: list[tuple[DefectMap, Path]] = []
         self.excluded: list[tuple[Path, ...]] = []
+        self.merge_overwrite: list[bool] = []
 
     def discover(self, input_dir: Path, *, exclude_dirs: Iterable[Path] = ()) -> list[Path]:
         """Recursive, like ``discover_raw_files(recursive=True)``, so exclusion matters."""
@@ -243,8 +244,10 @@ class FakeServices:
         self.written.append((defects, path, overwrite))
         return path
 
-    def merge(self, defects: DefectMap, config_path: Path) -> None:
+    def merge(self, defects: DefectMap, config_path: Path, *, overwrite: bool) -> Path:
         self.merged.append((defects, config_path))
+        self.merge_overwrite.append(overwrite)
+        return config_path
 
     def make_detector(self, config: DefectDetectionConfig) -> FakeDetector:
         detector = self.detector_cls(config)

@@ -47,13 +47,13 @@ def test_builtin_adapts_the_io_and_defects_signatures(monkeypatch: pytest.Monkey
 
     assert svc.discover(tmp_path, exclude_dirs=[out]) == [tmp_path / "A.CR2"]
     assert svc.write_defect_map(defects, tmp_path / "d.yaml", overwrite=True) == tmp_path / "d.yaml"
-    svc.merge_defect_map(defects, tmp_path / "c.yaml")
+    assert svc.merge_defect_map(defects, tmp_path / "c.yaml", overwrite=False) == tmp_path / "c.yaml"
     detector = svc.make_defect_detector(config)
 
     assert calls == [
         ("discover", (tmp_path,), {"exclude_dirs": (out,)}),
         ("write", (tmp_path / "d.yaml", defects), {"overwrite": True}),
-        ("merge", (tmp_path / "c.yaml", defects), {}),
+        ("merge", (tmp_path / "c.yaml", defects), {"overwrite": False}),
     ]
     assert isinstance(detector, Detector)
     assert detector.config is config
@@ -91,7 +91,7 @@ def _signature_checked(real: Callable[..., object]) -> Callable[..., object]:
         (
             "raw_pipeline.io.defects_yaml",
             "merge_defect_map_into_config",
-            lambda s, p: s.merge_defect_map(DefectMap(), p / "c.yaml"),
+            lambda s, p: s.merge_defect_map(DefectMap(), p / "c.yaml", overwrite=True),
         ),
         (
             "raw_pipeline.defects.detection",
