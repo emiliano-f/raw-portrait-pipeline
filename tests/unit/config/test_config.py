@@ -233,7 +233,9 @@ def test_reused_merge_source_with_override_parses() -> None:
     assert data == yaml.safe_load(text)
 
 
-@pytest.mark.parametrize("text", ["a: {10: x, 0xA: y}\n", "a: {1: x, 1.0: y}\n", "a: {true: x, yes: y}\n"])
+@pytest.mark.parametrize(
+    "text", ["a: {10: x, 0xA: y}\n", "a: {1: x, 1.0: y}\n", "a: {true: x, yes: y}\n", "a: {.nan: x, !!float nan: y}\n"]
+)
 def test_equivalent_yaml_keys_are_duplicates(text: str) -> None:
     with pytest.raises(yaml.YAMLError, match="duplicate key"):
         yaml.load(text, Loader=_UniqueKeyLoader)

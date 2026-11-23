@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ from raw_pipeline.core.errors import ConfigError
 
 _MERGE_TAG = "tag:yaml.org,2002:merge"
 _MERGE_KEY = object()
+_NAN_KEY = object()
 _VALUE_TAG = "tag:yaml.org,2002:value"
 
 
@@ -35,7 +37,8 @@ def _mapping_key(loader: yaml.SafeLoader, key_node: yaml.ScalarNode) -> object:
         return _MERGE_KEY
     if key_node.tag == _VALUE_TAG:  # bare ``=``; PyYAML turns it into the string "=" when flattening
         return key_node.value
-    return loader.construct_object(key_node)
+    key = loader.construct_object(key_node)
+    return _NAN_KEY if isinstance(key, float) and math.isnan(key) else key
 
 
 def _check_mapping_keys(loader: yaml.SafeLoader, root: yaml.Node) -> None:
