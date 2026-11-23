@@ -16,14 +16,11 @@ from raw_pipeline.core.registry import BuildEnv
 from raw_pipeline.core.values import QAResult
 from raw_pipeline.qa.preview import MAX_PREVIEW_LONG_EDGE_PX, inspect_preview
 from raw_pipeline.qa.response import SYSTEM_PROMPT, USER_PROMPT, ResponseFormatError, message_content, parse_verdict
+from raw_pipeline.qa.target import require_endpoint_and_model
 from raw_pipeline.qa.transport import HttpRequest, HttpTransport, TransportError, UrllibTransport
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_ENDPOINT: Final = "https://api.openai.com/v1"
-"""Base URL used when ``qa.endpoint`` is null."""
-DEFAULT_MODEL: Final = "gpt-4o-mini"
-"""Model used when ``qa.model`` is null."""
 MAX_RESPONSE_TOKENS: Final = 200
 """Upper bound on the length of the model answer, in tokens."""
 
@@ -77,8 +74,8 @@ class OpenAICompatibleProvider:
         api_key: str | None,
         *,
         api_key_env: str = "QA_API_KEY",
-        endpoint: str = DEFAULT_ENDPOINT,
-        model: str = DEFAULT_MODEL,
+        endpoint: str,
+        model: str,
         timeout_s: float = 30.0,
         transport: HttpTransport | None = None,
     ) -> None:
@@ -103,14 +100,15 @@ class OpenAICompatibleProvider:
         """Build from ``qa.*``; the key is read from the variable named by ``qa.api_key_env``.
 
         Raises:
-            ConfigError: If ``qa.endpoint`` is not an acceptable URL.
+            ConfigError: If ``qa.endpoint`` or ``qa.model`` is null, or the endpoint is not an acceptable URL.
         """
         cfg = app_config(env).qa
+        endpoint, model = require_endpoint_and_model(cfg)
         return cls(
             os.environ.get(cfg.api_key_env),
             api_key_env=cfg.api_key_env,
-            endpoint=cfg.endpoint or DEFAULT_ENDPOINT,
-            model=cfg.model or DEFAULT_MODEL,
+            endpoint=endpoint,
+            model=model,
             timeout_s=cfg.timeout_s,
         )
 

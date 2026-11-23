@@ -17,17 +17,20 @@ from raw_pipeline.core.errors import ConfigError
 from raw_pipeline.core.protocols import QAProvider
 from raw_pipeline.core.registries import qa_registry
 from raw_pipeline.core.registry import BuildEnv
-from raw_pipeline.qa.openai_compatible import DEFAULT_ENDPOINT, DEFAULT_MODEL, OpenAICompatibleProvider
+from raw_pipeline.qa.openai_compatible import OpenAICompatibleProvider
 from raw_pipeline.qa.preview import encode_preview
 from tests.contract.qa_provider_contract import QAProviderContract
 from tests.support.synthetic import flat_image
 from tests.unit.qa.fakes import FailingTransport, RecordingTransport, chat_response
 
 SECRET = "sk-test-not-a-real-key-1234"
+ENDPOINT = "https://vision.example/v1"
+MODEL = "vision-model"
 OK_BODY = chat_response('{"flags": ["blur"], "notes": "Soft focus."}')
 
 
 def _provider(transport: object, api_key: str | None = SECRET, **kwargs: object) -> OpenAICompatibleProvider:
+    kwargs = {"endpoint": ENDPOINT, "model": MODEL, **kwargs}
     return OpenAICompatibleProvider(api_key, transport=transport, **kwargs)  # type: ignore[arg-type]
 
 
@@ -152,20 +155,34 @@ def test_picklable(tiny_jpeg: bytes) -> None:
 
 def test_from_env_reads_config_and_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("VISION_KEY", SECRET)
-    cfg = AppConfig(qa=QAConfig(provider="openai_compatible", api_key_env="VISION_KEY", model="m", timeout_s=5))
-    provider = qa_registry.create("openai_compatible", BuildEnv(config=cfg, output_dir=Path("out")))
+    qa = QAConfig(provider="openai_compatible", api_key_env="VISION_KEY", endpoint=ENDPOINT, model="m", timeout_s=5)
+    provider = qa_registry.create("openai_compatible", BuildEnv(config=AppConfig(qa=qa), output_dir=Path("out")))
     assert isinstance(provider, OpenAICompatibleProvider)
     assert provider.model == "m"
     assert provider.timeout_s == 5
-    assert provider.endpoint == DEFAULT_ENDPOINT
+    assert provider.endpoint == ENDPOINT
 
 
-def test_from_env_defaults_without_key(monkeypatch: pytest.MonkeyPatch, tiny_jpeg: bytes) -> None:
+def test_from_env_without_key_skips(monkeypatch: pytest.MonkeyPatch, tiny_jpeg: bytes) -> None:
     monkeypatch.delenv("QA_API_KEY", raising=False)
-    cfg = AppConfig(qa=QAConfig(provider="openai_compatible"))
+    cfg = AppConfig(qa=QAConfig(provider="openai_compatible", endpoint=ENDPOINT, model=MODEL))
     provider = OpenAICompatibleProvider.from_env(BuildEnv(config=cfg, output_dir=Path("out")))
-    assert provider.model == DEFAULT_MODEL
     assert provider.review(tiny_jpeg).skipped
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "model", "missing"),
+    [
+        (None, MODEL, r"qa\.endpoint must"),
+        (ENDPOINT, None, r"qa\.model must"),
+        (None, None, r"qa\.endpoint and qa\.model must"),
+        ("", MODEL, r"qa\.endpoint must"),
+    ],
+)
+def test_from_env_requires_endpoint_and_model(endpoint: str | None, model: str | None, missing: str) -> None:
+    cfg = AppConfig(qa=QAConfig(provider="openai_compatible", endpoint=endpoint, model=model))
+    with pytest.raises(ConfigError, match=missing):
+        OpenAICompatibleProvider.from_env(BuildEnv(config=cfg, output_dir=Path("out")))
 
 
 @pytest.mark.parametrize("bad_key", ["sk-abc\nInjected: 1", "sk abc", "sk-\u00e9t\u00e9", "sk-\x00"])

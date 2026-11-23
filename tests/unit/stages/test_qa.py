@@ -13,7 +13,7 @@ from raw_pipeline.config import AppConfig
 from raw_pipeline.config.models import QAConfig
 from raw_pipeline.core.artifacts import QA_RESULT
 from raw_pipeline.core.context import ImageContext
-from raw_pipeline.core.errors import StageError
+from raw_pipeline.core.errors import ConfigError, StageError
 from raw_pipeline.core.protocols import Stage
 from raw_pipeline.core.registries import stage_registry
 from raw_pipeline.core.registry import BuildEnv
@@ -130,7 +130,14 @@ def test_from_env_default_is_null_provider() -> None:
 
 def test_from_env_builds_configured_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("QA_API_KEY", raising=False)
-    cfg = AppConfig(qa=QAConfig(provider="openai_compatible", preview_long_edge_px=640, preview_jpeg_quality=70))
+    qa = QAConfig(
+        provider="openai_compatible",
+        endpoint="https://vision.example/v1",
+        model="m",
+        preview_long_edge_px=640,
+        preview_jpeg_quality=70,
+    )
+    cfg = AppConfig(qa=qa)
     stage = QAStage.from_env(BuildEnv(config=cfg, output_dir=Path("out")))
     assert isinstance(stage.provider, OpenAICompatibleProvider)
     assert stage.preview_long_edge_px == 640
@@ -139,8 +146,15 @@ def test_from_env_builds_configured_provider(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_without_api_key_pipeline_image_still_processed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("QA_API_KEY", raising=False)
-    cfg = AppConfig(qa=QAConfig(provider="openai_compatible"))
+    cfg = AppConfig(qa=QAConfig(provider="openai_compatible", endpoint="https://vision.example/v1", model="m"))
     ctx = decoded_context()
     out = QAStage.from_env(BuildEnv(config=cfg, output_dir=Path("out"))).process(ctx)
     np.testing.assert_array_equal(out.image, ctx.image)
     assert out.metadata.records["qa"]["skipped"] is True
+
+
+@pytest.mark.parametrize("provider", ["openai_compatible", "some_plugin"])
+def test_from_env_requires_endpoint_and_model_for_any_provider(provider: str) -> None:
+    cfg = AppConfig(qa=QAConfig(provider=provider))
+    with pytest.raises(ConfigError, match=r"qa\.endpoint and qa\.model must be set"):
+        QAStage.from_env(BuildEnv(config=cfg, output_dir=Path("out")))

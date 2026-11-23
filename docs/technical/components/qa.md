@@ -21,8 +21,7 @@ over the standard library `urllib`; tests inject fakes).
 
 Only when `qa.provider` is not `none` **and** the API key variable
 (`qa.api_key_env`, default `QA_API_KEY`) is set, one HTTPS `POST` per image goes
-to `{qa.endpoint}/chat/completions` (default endpoint
-`https://api.openai.com/v1`, default model `gpt-4o-mini`) containing:
+to `{qa.endpoint}/chat/completions` containing:
 
 - a fixed text prompt (`SYSTEM_PROMPT`, `USER_PROMPT` in `qa/response.py`);
 - one JPEG preview as a base64 `data:` URL: long edge at most
@@ -40,6 +39,10 @@ Safeguards:
 - the stage encodes the preview itself (downscale in linear light, then sRGB);
 - the provider refuses anything that is not a JPEG or whose long edge exceeds
   1024 px, before any request is made (`MAX_PREVIEW_LONG_EDGE_PX`);
+- there is no built-in endpoint or model: when `qa.provider` is not `none`,
+  both `qa.endpoint` and `qa.model` must be set, otherwise building the
+  pipeline fails with a `ConfigError` naming the missing field(s). Previews
+  only ever go to a host the user named;
 - `qa.endpoint` must be `https://`; plain `http://` is accepted only for
   `localhost` / `127.0.0.1` / `::1` (self-hosted models). Anything else is a
   `ConfigError` when the pipeline is built;

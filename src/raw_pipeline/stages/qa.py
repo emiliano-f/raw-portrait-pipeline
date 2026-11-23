@@ -15,6 +15,7 @@ from raw_pipeline.core.registry import BuildEnv
 from raw_pipeline.core.values import QAResult, Scalar
 from raw_pipeline.qa.preview import MAX_PREVIEW_LONG_EDGE_PX, encode_preview
 from raw_pipeline.qa.response import KNOWN_FLAGS
+from raw_pipeline.qa.target import require_endpoint_and_model
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +44,14 @@ class QAStage:
 
     @classmethod
     def from_env(cls, env: BuildEnv) -> QAStage:
-        """Build from ``qa.*``, resolving ``qa.provider`` in the QA registry."""
+        """Build from ``qa.*``, resolving ``qa.provider`` in the QA registry.
+
+        Raises:
+            ConfigError: If ``qa.provider`` is not ``none`` and ``qa.endpoint`` or ``qa.model`` is null.
+        """
         cfg = app_config(env).qa
+        if cfg.provider != "none":
+            require_endpoint_and_model(cfg)
         return cls(
             qa_registry.create(cfg.provider, env),
             preview_long_edge_px=cfg.preview_long_edge_px,
