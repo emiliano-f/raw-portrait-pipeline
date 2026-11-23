@@ -92,8 +92,9 @@ Per frame:
    and the frame is rescored until nothing new is flagged (at most 8
    passes); each pass uncovers the next column of a wide band or of a band
    at the sensor border. Each side's reference is the median of its 3
-   nearest same-colour neighbours not yet flagged (searched up to 16
-   photosites out). Bands up to 6 photosites wide are detected, up to 4 at
+   nearest same-colour neighbours, skipping those already flagged (they are
+   not replaced by photosites further out, which could lie beyond a narrow
+   scene stripe). Bands up to 6 photosites wide are detected, up to 4 at
    the sensor border: a wider band there looks exactly like a scene edge
    parallel to the border. Wider bands go unnoticed (every column then has a
    defective majority on one side) and must be written into the map by

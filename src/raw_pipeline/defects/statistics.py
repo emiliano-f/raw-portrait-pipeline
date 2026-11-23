@@ -32,14 +32,11 @@ _T: Final = CFA_TILE_SIZE
 LINE_REACH_STEPS: Final = 3
 """Same-colour neighbours taken on each side for line residuals; the median stays clean for bands up to 4 px wide."""
 
-LINE_SEARCH_STEPS: Final = 8
-"""How far (in same-colour steps) each side is searched for usable neighbours once lines are excluded."""
-
 LINE_REACH_PX: Final = LINE_REACH_STEPS * _T
 """Columns closer than this to the sensor border may be scored on one side only."""
 
-LINE_SIDES: Final = tuple(tuple((0, sign * k * _T) for k in range(1, LINE_SEARCH_STEPS + 1)) for sign in (-1, 1))
-"""Same-colour photosites along the row, nearest first, left side then right side, used to detect column defects."""
+LINE_SIDES: Final = tuple(tuple((0, sign * k * _T) for k in range(1, LINE_REACH_STEPS + 1)) for sign in (-1, 1))
+"""Same-colour neighbours of a photosite along its row, left side then right side, used to detect column defects."""
 
 RING_NEIGHBOURS: Final = tuple((dy, dx) for dy in (-_T, 0, _T) for dx in (-_T, 0, _T) if (dy, dx) != (0, 0))
 """The 8 nearest same-colour neighbours, used to detect pixel defects."""
@@ -53,7 +50,6 @@ def same_colour_residual(
     offsets: tuple[tuple[int, int], ...],
     ignore: NDArray[np.bool_] | None = None,
     missing: float = 0.0,
-    nearest: int | None = None,
 ) -> NDArray[np.float32]:
     """Return ``data`` minus the median of its same-colour neighbours at ``offsets``.
 
@@ -67,11 +63,7 @@ def same_colour_residual(
         ignore: Optional ``(H, W)`` mask of photosites never used as neighbours
             (e.g. lines already found).
         missing: Residual of photosites without any usable neighbour.
-        nearest: Use only the first ``nearest`` usable neighbours, in
-            ``offsets`` order (nearest first), instead of all of them.
     """
-    if nearest is not None and ignore is None:
-        offsets = offsets[:nearest]  # nothing is skipped inside the frame; further offsets only leave it
     height, width = data.shape
     pad = max(abs(v) for offset in offsets for v in offset)
     source = data if ignore is None else np.where(ignore, np.float32(np.nan), data)
@@ -82,27 +74,9 @@ def same_colour_residual(
         neighbours = np.stack(
             [padded[pad + y0 + dy : pad + y1 + dy, pad + dx : pad + width + dx] for dy, dx in offsets]
         )
-        if nearest is not None and len(offsets) > nearest:
-            closest = neighbours[:nearest]
-            short = np.isnan(closest).any(axis=0)  # only near skipped photosites and the border
-            closest[:, short] = _first_valid(neighbours[:, short], nearest)
-            neighbours = closest
         reference = _nan_median_first_axis(neighbours)
         out[y0:y1] = np.where(np.isnan(reference), np.float32(missing), data[y0:y1] - reference)
     return out
-
-
-def _first_valid(stack: NDArray[np.float32], count: int) -> NDArray[np.float32]:
-    """The first ``count`` non-NaN values along axis 0 (NaN where fewer exist)."""
-    valid = ~np.isnan(stack)
-    rank = np.cumsum(valid, axis=0)
-    picked = np.empty((count, *stack.shape[1:]), dtype=np.float32)
-    for j in range(count):
-        chosen = valid & (rank == j + 1)
-        index = np.argmax(chosen, axis=0)
-        picked[j] = np.take_along_axis(stack, index[None], axis=0)[0]
-        picked[j][~chosen.any(axis=0)] = np.nan
-    return picked
 
 
 def _nan_median_first_axis(stack: NDArray[np.float32]) -> NDArray[np.float32]:
@@ -150,7 +124,7 @@ def _side_segment_z(
     segment_px: int,
     ignore: NDArray[np.bool_] | None,
 ) -> NDArray[np.float32]:
-    residual = same_colour_residual(data, side, ignore, missing=np.nan, nearest=LINE_REACH_STEPS)
+    residual = same_colour_residual(data, side, ignore, missing=np.nan)
     height = data.shape[0]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)  # columns at the border have no neighbour on one side
@@ -177,9 +151,10 @@ def _line_z(data: NDArray[np.float32], segment_px: int, ignore: NDArray[np.bool_
 def line_segment_z(data: NDArray[np.float32], segment_px: int, threshold_sigma: float) -> NDArray[np.float32]:
     """Outlier score of every column, per segment of ``segment_px`` rows.
 
-    Each column's residual against the median of its :data:`LINE_REACH_STEPS`
-    nearest usable same-colour neighbours on the left and on the right
-    (:data:`LINE_SIDES`; segments already flagged are skipped) is reduced to its median per segment and
+    Each column's residual against the median of its usable same-colour
+    neighbours on the left and on the right (:data:`LINE_SIDES`; segments
+    already flagged are skipped, never replaced by photosites further out,
+    which could lie beyond a narrow scene stripe) is reduced to its median per segment and
     standardised across columns of the same parity (same CFA colours), per
     side. A defect stands out from *both* sides, so the score is the smaller
     of the two z-scores when they agree in sign and 0 otherwise: a sharp

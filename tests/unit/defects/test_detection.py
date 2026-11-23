@@ -173,3 +173,14 @@ def test_stationary_scene_edge_beside_a_wide_band_is_not_flagged() -> None:
         for s in range(5)
     ]
     assert _found(StatisticalDefectDetector(), frames) == {band}
+
+
+def test_stationary_stripe_beside_a_wide_band_is_not_flagged() -> None:
+    band = ColumnDefect(index=100, width=6)
+    frames = []
+    for s in range(5):
+        frame = cfa_frame(SIZE, SIZE, level=3000, seed=s)
+        data = frame.data.copy()
+        data[:, 106:112] += 600
+        frames.append(inject_hot(frame.with_data(data), DefectMap((band,)).mask(SIZE, SIZE), 9000))
+    assert _found(StatisticalDefectDetector(), frames) == {band}
