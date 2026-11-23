@@ -203,8 +203,13 @@ class QAConfig(_Section):
     """Optional vision-LLM QA. Runs only when ``provider`` is not ``none`` and an API key is set."""
 
     provider: str = Field(default="none", description="Registered QA provider; 'none' disables QA.")
-    model: str | None = Field(default=None, description="Provider model identifier.")
-    endpoint: str | None = Field(default=None, description="API base URL (provider default when null).")
+    model: str | None = Field(
+        default=None, description="Provider model identifier; required when provider is not none."
+    )
+    endpoint: str | None = Field(
+        default=None,
+        description="API base URL (https, or http for localhost); required when provider is not none.",
+    )
     api_key_env: str = Field(default="QA_API_KEY", description="Environment variable holding the API key.")
     preview_long_edge_px: int = Field(
         default=1024, ge=64, le=1024, description="Long edge of the JPEG preview sent (px, at most 1024)."
