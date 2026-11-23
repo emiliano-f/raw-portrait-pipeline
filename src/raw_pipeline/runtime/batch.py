@@ -5,9 +5,10 @@ from __future__ import annotations
 import logging
 import multiprocessing
 import os
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field, replace
+from functools import partial
 from pathlib import Path
 from typing import Final
 
@@ -18,6 +19,7 @@ from raw_pipeline.runtime.observers import NullObserver
 from raw_pipeline.runtime.pipeline import ImageRun, Pipeline, StageTiming
 
 logger = logging.getLogger(__name__)
+
 
 START_METHOD: Final = "spawn"
 """Worker start method: ``spawn`` behaves the same on Linux and macOS and is safe
@@ -87,16 +89,21 @@ class BatchRunner:
         """Process ``sources`` and write the batch reports into ``output_dir``."""
         self._observer.on_batch_start(len(sources))
         outcomes: list[ImageOutcome] = []
+        errors: dict[str, str] = {}
         for run in self._runs(sources):
             for timing in run.timings:
                 self._observer.on_stage_end(run.outcome.source_path, timing.stage, timing.seconds)
             self._observer.on_image_end(run.outcome)
             for reporter in reporters:
-                reporter.add(run.outcome)
+                if reporter.name not in errors:
+                    _guarded(reporter, errors, partial(reporter.add, run.outcome))
             outcomes.append(run.outcome)
-        report_paths, reporter_errors = _finalize(reporters, output_dir)
+        report_paths: list[Path] = []
+        for reporter in reporters:
+            if reporter.name not in errors:
+                report_paths.extend(_guarded(reporter, errors, partial(reporter.finalize, output_dir)) or ())
         self._observer.on_batch_end(outcomes)
-        return BatchResult(tuple(outcomes), report_paths, reporter_errors)
+        return BatchResult(tuple(outcomes), tuple(report_paths), errors)
 
     def _runs(self, sources: Sequence[Path]) -> Iterator[ImageRun]:
         workers = min(self._workers, len(sources))
@@ -111,16 +118,17 @@ class BatchRunner:
                 yield transport.to_run()
 
 
-def _finalize(reporters: Sequence[BatchReporter], output_dir: Path) -> tuple[tuple[Path, ...], dict[str, str]]:
-    paths: list[Path] = []
-    errors: dict[str, str] = {}
-    for reporter in reporters:
-        try:
-            paths.extend(reporter.finalize(output_dir))
-        except (PipelineError, OSError) as exc:
-            logger.error("reporter %s failed: %s", reporter.name, exc)
-            errors[reporter.name] = str(exc) or type(exc).__name__
-    return tuple(paths), errors
+def _guarded[R](reporter: BatchReporter, errors: dict[str, str], call: Callable[[], R]) -> R | None:
+    """Run ``call``; a failure is recorded in ``errors`` and disables the reporter for the rest of the batch."""
+    try:
+        return call()
+    except (PipelineError, OSError) as exc:
+        logger.error("reporter %s failed: %s", reporter.name, exc)
+        errors[reporter.name] = str(exc) or type(exc).__name__
+    except Exception as exc:
+        logger.exception("unexpected error in reporter %s", reporter.name)
+        errors[reporter.name] = str(exc) or type(exc).__name__
+    return None
 
 
 @dataclass(frozen=True)

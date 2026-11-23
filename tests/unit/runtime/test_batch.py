@@ -101,3 +101,31 @@ def test_reporter_failure_does_not_lose_outcomes(
     assert set(result.reporter_errors) == {"fake_summary"}
     assert result.exit_code == 1
     assert (out / "summary.txt").read_text() == "previous run"
+
+
+class CrashingReporter(FakeSummary):
+    name = "crashing"
+
+    def add(self, outcome: ImageOutcome) -> None:
+        if outcome.source_path.name == "B.CR2":
+            msg = "bad row"
+            raise KeyError(msg)
+        super().add(outcome)
+
+
+def test_reporter_crash_in_add_does_not_stop_the_batch(
+    registries: ComponentRegistries, config: AppConfig, tmp_path: Path
+) -> None:
+    sources = write_inputs(tmp_path / "in", {"A.CR2": b"a", "B.CR2": b"b", "C.CR2": b"c"})
+    out = tmp_path / "out"
+    out.mkdir()
+    pipeline = PipelineFactory(registries).build_pipeline(BuildEnv(config=config, output_dir=out))
+    crashing = CrashingReporter(overwrite=False)
+
+    result = BatchRunner(pipeline).run(sources, [crashing, FakeSummary(overwrite=False)], out)
+
+    assert [o.ok for o in result.outcomes] == [True, True, True]
+    assert set(result.reporter_errors) == {"crashing"}
+    assert result.report_paths == (out / "summary.txt",)
+    assert len((out / "summary.txt").read_text().splitlines()) == 3
+    assert len(crashing.lines) == 1
