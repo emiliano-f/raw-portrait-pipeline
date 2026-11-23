@@ -5,7 +5,7 @@ Markers replaced in page Markdown:
 - ``<!-- generated:config-reference -->``: every option of ``AppConfig``,
   rendered from :func:`raw_pipeline.config.schema.config_json_schema`.
 - ``<!-- generated:config-defaults -->``: the complete default configuration as YAML.
-- ``<!-- generated:components -->``: every registered component, per registry.
+- ``<!-- generated:components -->``: every built-in component, per registry.
 - ``<!-- generated:import-contracts -->``: the import-linter contracts in ``pyproject.toml``.
 
 The build fails if a config field has no description or if a page holding the
@@ -31,6 +31,7 @@ from raw_pipeline.runtime.components import load_components
 Schema = Mapping[str, Any]
 
 PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
+BUILTIN_PREFIX = "raw_pipeline."
 MARKER = re.compile(r"<!-- generated:(?P<name>[a-z-]+) -->")
 CONSTRAINTS = (
     ("minimum", "≥"),
@@ -163,7 +164,7 @@ def render_config_defaults(_: str) -> str:
 
 
 def render_components(markdown: str) -> str:
-    """Table of every registered component; fails if the page omits one of them."""
+    """Table of every built-in component; fails if the page omits one of them."""
     registries = load_components()
     rows = ["| Registry | Name | Class |", "| --- | --- | --- |"]
     missing: list[str] = []
@@ -171,6 +172,8 @@ def render_components(markdown: str) -> str:
         for name in registry.names():
             factory = registry._factories[name]  # Registry exposes no factory accessor; read-only here
             owner = getattr(factory, "__self__", factory)
+            if not owner.__module__.startswith(BUILTIN_PREFIX):
+                continue  # entry-point plugins installed locally are documented by their own package
             rows.append(f"| `{registry.kind}` | `{name}` | `{owner.__module__}.{owner.__qualname__}` |")
             if f"`{name}`" not in MARKER.sub("", markdown):
                 missing.append(f"{registry.kind}:{name}")
