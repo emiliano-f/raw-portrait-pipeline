@@ -14,7 +14,7 @@ from raw_pipeline.config.models import AppConfig, DefectDetectionConfig
 from raw_pipeline.config.validation import component_references
 from raw_pipeline.core.artifacts import OUTPUT_PATHS, REPORT_THUMBNAILS
 from raw_pipeline.core.context import ImageContext
-from raw_pipeline.core.errors import DecodeError, OutputExistsError
+from raw_pipeline.core.errors import ConfigError, DecodeError, OutputExistsError
 from raw_pipeline.core.protocols import ImageOutcome
 from raw_pipeline.core.raw import CFAFrame, ColumnDefect, DefectMap, DetectedDefect, PixelDefect
 from raw_pipeline.core.registry import BuildEnv
@@ -138,6 +138,18 @@ class Inert:
         return cls()
 
 
+class RejectsConfig(Inert):
+    """Stage whose ``from_env`` rejects the config, like the QA stage without endpoint/model."""
+
+    name: ClassVar[str] = "rejects_config"
+
+    @classmethod
+    def from_env(cls, env: BuildEnv) -> RejectsConfig:
+        del env
+        msg = "qa.endpoint and qa.model are required when qa.provider is not 'none'"
+        raise ConfigError(msg)
+
+
 class FakeHandle:
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -199,6 +211,7 @@ def make_registries(config: AppConfig) -> ComponentRegistries:
     for cls in (FakeDecode, FakeBrighten, FakeExport):
         regs.stages.register(cls.name)(cls)
     regs.reporters.register(FakeSummary.name)(FakeSummary)
+    regs.stages.register(RejectsConfig.name)(RejectsConfig)
     regs.raw_decoders.register(FakeDecoder.name)(FakeDecoder)
     if config.decode.decoder not in regs.raw_decoders:
         regs.raw_decoders.register(config.decode.decoder)(FakeDecoder)
@@ -217,10 +230,14 @@ class FakeServices:
         self.detectors: list[FakeDetector] = []
         self.written: list[tuple[DefectMap, Path, bool]] = []
         self.merged: list[tuple[DefectMap, Path]] = []
+        self.excluded: list[tuple[Path, ...]] = []
 
-    def discover(self, input_dir: Path, *, exclude: Path | None = None) -> list[Path]:
-        found = sorted(p for p in input_dir.iterdir() if p.suffix.lower() == ".cr2" and p.is_file())
-        return [p for p in found if exclude is None or exclude not in p.parents]
+    def discover(self, input_dir: Path, *, exclude_dirs: Iterable[Path] = ()) -> list[Path]:
+        """Recursive, like ``discover_raw_files(recursive=True)``, so exclusion matters."""
+        self.excluded.append(tuple(exclude_dirs))
+        skip = [d.resolve() for d in exclude_dirs]
+        found = (p for p in input_dir.rglob("*") if p.suffix.lower() == ".cr2" and p.is_file())
+        return sorted(p for p in found if not any(d in p.resolve().parents for d in skip))
 
     def write(self, defects: DefectMap, path: Path, *, overwrite: bool) -> Path:
         self.written.append((defects, path, overwrite))

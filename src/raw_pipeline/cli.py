@@ -115,7 +115,9 @@ def _detect(
     out: TextIO,
     ask: Callable[[str], str],
 ) -> int:
-    request = DetectDefectsRequest(input_dir=args.input_dir, config_path=args.config, dark_frame=args.dark_frame)
+    request = DetectDefectsRequest(
+        input_dir=args.input_dir, config_path=args.config, dark_frame=args.dark_frame, output=args.output
+    )
     result = detect_defects(request, registries=registries, services=services)
     out.write(f"analysed {len(result.frames_used)} frame(s), {len(result.frames_failed)} unreadable\n")
     if not result.detected:

@@ -24,7 +24,8 @@ and a final `N ok, M failed` line; `-q` hides it. Logging goes to stderr
 `detect-defects` analyses the batch (or only `--dark-frame`), prints each finding
 in raw sensor coordinates using the `defects.map` YAML form, then:
 
-- with `--output`: writes a standalone `.yaml`/`.yml` defects file (refused if it exists, unless `--overwrite`);
+- with `--output`: writes a standalone `.yaml`/`.yml` defects file (refused if it exists, unless `--overwrite`;
+  the suffix is checked before any frame is read);
 - otherwise: asks `[y/N]` before replacing `defects.map` in the `--config` file
   (`--yes` skips the question; no answer or end of input means no).
 
@@ -49,9 +50,13 @@ flowchart LR
    skipped; its components are simply unregistered.
 2. `ComponentRegistries.validate` reports every unknown component name at once,
    before any image is touched.
-3. Discovery excludes the output folder, so outputs are never re-read as inputs.
+3. Discovery always passes the output folder in `exclude_dirs`, so outputs are never
+   re-read as inputs, even when the output folder sits inside the input folder.
 4. `PipelineFactory` builds the stages listed in `pipeline.stages`, in that order,
    and the reporters in `report.reporters`, through `Registry.create(name, env)`.
+   This happens before the output folder is created: a `ConfigError` raised while
+   building (for example QA enabled without `qa.endpoint`/`qa.model`) exits 2 with
+   nothing written.
 5. `BatchRunner` runs one image per task. `workers` is `--workers`, else
    `pipeline.workers`, else CPU count − 1. With more than one worker it uses a
    `spawn` process pool; outcomes come back in input order, so reports and the

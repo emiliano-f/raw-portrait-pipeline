@@ -56,11 +56,13 @@ class DetectDefectsRequest:
         input_dir: Folder of RAW files analysed as a batch (ignored with ``dark_frame``).
         config_path: YAML config; ``None`` uses the defaults.
         dark_frame: A single dark frame (lens cap on, same ISO) to analyse instead.
+        output: Standalone defects file to write later; checked before any frame is read.
     """
 
     input_dir: Path
     config_path: Path | None = None
     dark_frame: Path | None = None
+    output: Path | None = None
 
 
 def process_batch(
@@ -80,16 +82,16 @@ def process_batch(
     regs = load_components(registries)
     regs.validate(config)
     _check_dirs(request.input_dir, request.output_dir)
-    sources = (services or RuntimeServices.builtin()).discover(request.input_dir, exclude=request.output_dir)
+    sources = (services or RuntimeServices.builtin()).discover(request.input_dir, exclude_dirs=(request.output_dir,))
     if not sources:
         msg = f"no RAW files found in {request.input_dir}"
         raise InputError(msg)
-    request.output_dir.mkdir(parents=True, exist_ok=True)
     workers = request.workers or config.pipeline.workers or default_workers()
     env = BuildEnv(config=config, output_dir=request.output_dir, overwrite=request.overwrite)
     factory = PipelineFactory(regs)
     pipeline = factory.build_pipeline(env)
     reporters = factory.build_reporters(env)
+    request.output_dir.mkdir(parents=True, exist_ok=True)
     logger.info("stages: %s; workers: %d", ", ".join(pipeline.stage_names), workers)
     return BatchRunner(pipeline, workers, observer).run(sources, reporters, request.output_dir)
 
@@ -109,6 +111,8 @@ def detect_defects(
     config = load_config(request.config_path)
     regs = load_components(registries)
     _check_decoder(config.decode.decoder, regs)
+    if request.output is not None:
+        _check_defects_output(request.output)
     svc = services or RuntimeServices.builtin()
     if request.dark_frame is not None:
         if not request.dark_frame.is_file():
@@ -159,9 +163,7 @@ def save_defect_map(
     """
     svc = services or RuntimeServices.builtin()
     if output is not None:
-        if output.suffix.lower() not in DEFECTS_FILE_SUFFIXES:
-            msg = f"--output must be a .yaml or .yml file, got {output}"
-            raise InputError(msg)
+        _check_defects_output(output)
         return svc.write_defect_map(defects, output, overwrite=overwrite)
     if config_path is None:
         msg = "pass --output, or --config to update the config file"
@@ -193,3 +195,9 @@ def _check_decoder(name: str, registries: ComponentRegistries) -> None:
         known = ", ".join(registries.raw_decoders.names()) or "none"
         msg = f"invalid configuration:\n  - decode.decoder: unknown raw_decoders {name!r}; registered: {known}"
         raise ConfigError(msg)
+
+
+def _check_defects_output(output: Path) -> None:
+    if output.suffix.lower() not in DEFECTS_FILE_SUFFIXES:
+        msg = f"--output must be a .yaml or .yml file, got {output}"
+        raise InputError(msg)

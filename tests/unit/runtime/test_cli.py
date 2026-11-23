@@ -89,17 +89,20 @@ def test_process_refuses_to_overwrite_without_flag(
     assert (out / "IMG_0001.txt").read_text() != "keep me"
 
 
-def test_process_does_not_read_its_own_output_folder(run: Run, input_dir: Path, config_path: Path) -> None:
+def test_process_does_not_read_its_own_output_folder(
+    run: Run, input_dir: Path, config_path: Path, services: FakeServices
+) -> None:
     out = input_dir / "out"
     assert run("process", input_dir, out, "--config", config_path) == 0
     write_inputs(out, {"IMG_9999.CR2": b"BAD"})
     assert run("process", input_dir, out, "--config", config_path, "--overwrite") == 0
     assert "3 ok, 0 failed" in run.err.getvalue()
+    assert services.excluded == [(out,), (out,)]
 
 
 @pytest.mark.parametrize(
     "case",
-    ["missing_input", "same_dir", "output_is_file", "no_raws", "unknown_component", "bad_config"],
+    ["missing_input", "same_dir", "output_is_file", "no_raws", "unknown_component", "bad_config", "build_rejects"],
 )
 def test_process_usage_errors_exit_two_before_writing(
     run: Run, input_dir: Path, config_path: Path, tmp_path: Path, case: str
@@ -119,8 +122,12 @@ def test_process_usage_errors_exit_two_before_writing(
         data = yaml.safe_load(config_path.read_text())
         data["pipeline"]["stages"].append("not_registered")
         config_path.write_text(yaml.safe_dump(data))
-    else:
+    elif case == "bad_config":
         config_path.write_text("pipeline: {workers: -3}\n")
+    else:
+        data = yaml.safe_load(config_path.read_text())
+        data["pipeline"]["stages"].append("rejects_config")
+        config_path.write_text(yaml.safe_dump(data))
 
     assert run(*args) == 2
     assert run.err.getvalue().startswith("error: ")
@@ -236,3 +243,11 @@ def test_detect_defects_exits_one_when_some_frames_are_unreadable(
     assert run("detect-defects", input_dir, "--config", config_path, "--yes") == 1
     assert "analysed 3 frame(s), 1 unreadable" in run.out.getvalue()
     assert len(services.merged) == 1
+
+
+def test_detect_defects_checks_output_before_reading_frames(
+    run: Run, input_dir: Path, config_path: Path, services: FakeServices
+) -> None:
+    services.detector_cls = EmptyDetector
+    assert run("detect-defects", input_dir, "--config", config_path, "--output", input_dir / "x.txt") == 2
+    assert services.detectors == []

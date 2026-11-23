@@ -9,7 +9,7 @@ with a clear message only when the feature is actually used.
 from __future__ import annotations
 
 import importlib
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, cast
@@ -25,9 +25,9 @@ class ComponentUnavailableError(PipelineError):
 
 
 class InputDiscovery(Protocol):
-    """Lists the RAW files of an input directory, sorted, never inside ``exclude``."""
+    """Lists the RAW files of an input directory, sorted, never inside ``exclude_dirs``."""
 
-    def __call__(self, input_dir: Path, *, exclude: Path | None = None) -> list[Path]:
+    def __call__(self, input_dir: Path, *, exclude_dirs: Iterable[Path] = ()) -> list[Path]:
         """Return the RAW files of ``input_dir``."""
         ...
 
@@ -72,25 +72,29 @@ class RuntimeServices:
     def builtin(cls) -> RuntimeServices:
         """The built-in implementations from ``raw_pipeline.io`` and ``raw_pipeline.defects``."""
         return cls(
-            discover=cast("InputDiscovery", _lazy("raw_pipeline.io.discovery", "discover_raw_files")),
-            write_defect_map=cast("DefectMapWriter", _lazy("raw_pipeline.io.defects_yaml", "write_defect_map")),
-            merge_defect_map=cast(
-                "DefectMapMerger", _lazy("raw_pipeline.io.defects_yaml", "merge_defect_map_into_config")
-            ),
-            make_defect_detector=cast(
-                "DefectDetectorFactory", _lazy("raw_pipeline.defects.detection", "StatisticalDefectDetector")
-            ),
+            discover=_discover,
+            write_defect_map=_write_defect_map,
+            merge_defect_map=_merge_defect_map,
+            make_defect_detector=_make_defect_detector,
         )
 
 
-def _lazy(module: str, attribute: str) -> Callable[..., Any]:
-    """Return a callable that imports ``module.attribute`` on first use and calls it."""
+def _discover(input_dir: Path, *, exclude_dirs: Iterable[Path] = ()) -> list[Path]:
+    found = resolve("raw_pipeline.io.discovery", "discover_raw_files")(input_dir, exclude_dirs=tuple(exclude_dirs))
+    return cast("list[Path]", found)
 
-    def call(*args: object, **kwargs: object) -> Any:  # noqa: ANN401 - forwards the target's result
-        return resolve(module, attribute)(*args, **kwargs)
 
-    call.__qualname__ = f"{module}.{attribute}"
-    return call
+def _write_defect_map(defects: DefectMap, path: Path, *, overwrite: bool) -> Path:
+    return cast("Path", resolve("raw_pipeline.io.defects_yaml", "write_defect_map")(path, defects, overwrite=overwrite))
+
+
+def _merge_defect_map(defects: DefectMap, config_path: Path) -> None:
+    resolve("raw_pipeline.io.defects_yaml", "merge_defect_map_into_config")(config_path, defects)
+
+
+def _make_defect_detector(config: DefectDetectionConfig) -> DefectDetector:
+    detector_cls = resolve("raw_pipeline.defects.detection", "StatisticalDefectDetector")
+    return cast("DefectDetector", detector_cls.from_config(config))  # type: ignore[attr-defined]
 
 
 def resolve(module: str, attribute: str) -> Callable[..., Any]:
