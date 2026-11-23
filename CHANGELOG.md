@@ -17,3 +17,6 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Raw-level defect correction (`defects`): `none`, `neighbor_average` and `directional`
   correctors on the CFA mosaic, and `StatisticalDefectDetector` for hot/stuck columns,
   rows and pixels from dark frames or a batch.
+- Detection and metering: `meter` stage with MediaPipe Tasks face detection + 478-point
+  mesh (vendored Apache-2.0 models, offline), OpenCV Haar fallback, `face_weighted` and
+  `center_weighted` metering with EV clamp.
