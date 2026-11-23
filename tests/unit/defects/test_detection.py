@@ -149,10 +149,17 @@ def test_six_photosite_band_is_found_whole() -> None:
     assert _found(StatisticalDefectDetector(), [_dark(defects=(band,))]) == {band}
 
 
-def test_six_column_band_stuck_at_white_on_the_border_is_found_whole() -> None:
-    band = ColumnDefect(index=0, width=6)
-    frame = inject_hot(cfa_frame(SIZE, SIZE, level=0), DefectMap((band,)).mask(SIZE, SIZE))
-    assert _found(StatisticalDefectDetector(), [frame]) == {band}
+def test_stationary_scene_edge_near_the_border_is_not_a_defect() -> None:
+    frames = [cfa_frame(SIZE, SIZE, level=3000, seed=s, edge_at_x=6, edge_level=3600) for s in range(5)]
+    assert StatisticalDefectDetector().detect(frames) == []
+
+
+def test_unevenly_hot_wide_band_is_found_whole() -> None:
+    frame = cfa_frame(SIZE, SIZE, level=0)
+    data = frame.data.copy()
+    for offset, value in enumerate((12000, 12000, 9000, 9000, 6000, 6000)):
+        data[:, 100 + offset] = value
+    assert _found(StatisticalDefectDetector(), [frame.with_data(data)]) == {ColumnDefect(index=100, width=6)}
 
 
 def test_stationary_scene_edge_beside_a_wide_band_is_not_flagged() -> None:

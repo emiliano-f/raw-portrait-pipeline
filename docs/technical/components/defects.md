@@ -91,14 +91,19 @@ Per frame:
    with `|z| > outlier_threshold_sigma` are flagged, excluded as neighbours,
    and the frame is rescored until nothing new is flagged (at most 8
    passes); each pass uncovers the next column of a wide band or of a band
-   at the sensor border. Bands up to 6 photosites wide are detected (also at the sensor border); wider
-   bands go unnoticed (every column then has a defective majority on one
-   side) and must be written into the map by hand.
+   at the sensor border. Each side's reference is the median of its 3
+   nearest same-colour neighbours not yet flagged (searched up to 16
+   photosites out). Bands up to 6 photosites wide are detected, up to 4 at
+   the sensor border: a wider band there looks exactly like a scene edge
+   parallel to the border. Wider bands go unnoticed (every column then has a
+   defective majority on one side) and must be written into the map by
+   hand.
 3. **Pixels.** The 8-neighbour residual, ignoring photosites flagged as lines
    in this frame, is scored per CFA colour plane in the same way. A
    photosite with more than a third of its in-frame neighbours on detected
-   lines is not scored (its remaining neighbours lie on one side), so a pixel defect in
-   the same-colour column or row right next to a line is not reported.
+   lines is not scored (its remaining neighbours lie on one side), so a
+   pixel defect in the same-colour column or row right next to a line is
+   not reported.
 
 After all frames, a candidate is kept if it was flagged in at least
 `ceil(min_frame_fraction · frames)` frames. Lines need at least
