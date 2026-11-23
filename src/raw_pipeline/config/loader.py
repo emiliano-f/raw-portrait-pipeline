@@ -14,6 +14,7 @@ from raw_pipeline.core.errors import ConfigError
 
 _MERGE_TAG = "tag:yaml.org,2002:merge"
 _MERGE_KEY = object()
+_VALUE_TAG = "tag:yaml.org,2002:value"
 
 
 class _UniqueKeyLoader(yaml.SafeLoader):
@@ -27,6 +28,14 @@ class _UniqueKeyLoader(yaml.SafeLoader):
     def construct_document(self, node: yaml.Node) -> object:
         _check_mapping_keys(self, node)
         return super().construct_document(node)
+
+
+def _mapping_key(loader: yaml.SafeLoader, key_node: yaml.ScalarNode) -> object:
+    if key_node.tag == _MERGE_TAG:
+        return _MERGE_KEY
+    if key_node.tag == _VALUE_TAG:  # bare ``=``; PyYAML turns it into the string "=" when flattening
+        return key_node.value
+    return loader.construct_object(key_node)
 
 
 def _check_mapping_keys(loader: yaml.SafeLoader, root: yaml.Node) -> None:
@@ -43,7 +52,7 @@ def _check_mapping_keys(loader: yaml.SafeLoader, root: yaml.Node) -> None:
                 if not isinstance(key_node, yaml.ScalarNode):
                     msg = "mapping keys must be plain scalars"
                     raise yaml.constructor.ConstructorError(None, None, msg, key_node.start_mark)
-                key = _MERGE_KEY if key_node.tag == _MERGE_TAG else loader.construct_object(key_node)
+                key = _mapping_key(loader, key_node)
                 if key in seen:
                     msg = f"duplicate key {key_node.value!r}"
                     raise yaml.constructor.ConstructorError(None, None, msg, key_node.start_mark)

@@ -237,3 +237,8 @@ def test_reused_merge_source_with_override_parses() -> None:
 def test_equivalent_yaml_keys_are_duplicates(text: str) -> None:
     with pytest.raises(yaml.YAMLError, match="duplicate key"):
         yaml.load(text, Loader=_UniqueKeyLoader)
+
+
+def test_bare_equals_key_parses() -> None:
+    text = "a: {=: x, b: y}\n"
+    assert yaml.load(text, Loader=_UniqueKeyLoader) == yaml.safe_load(text)
