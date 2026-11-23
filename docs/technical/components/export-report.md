@@ -36,6 +36,8 @@ their suffix, and write through `exporters.output.write_output`:
 - parent directories are created;
 - without `--overwrite` the file is opened with `O_EXCL` (`"xb"`); an existing
   file raises `OutputExistsError` and is left untouched;
+- with `--overwrite` the data goes to a temporary sibling that atomically
+  replaces the file once complete, so a failed rewrite keeps the previous file;
 - on any write error the partial file is removed and `ExportError` is raised.
 
 | | `jpeg` (`.jpg`) | `tiff` (`.tif`) |
@@ -63,7 +65,9 @@ is built. Stripping is the safe default, so this never leaks location.
 
 Builds the exporters listed in `export.formats` (in order) from the exporter
 registry and calls each with `<output_dir>/<input stem><export.filename_suffix>`.
-Pixels are not changed. Sets `OUTPUT_PATHS` (tuple, exporter order) and records:
+Pixels are not changed. If an exporter refuses an existing file
+(`OutputExistsError`), the files already written for that image in the same call
+are removed, so an image is exported all-or-nothing. Sets `OUTPUT_PATHS` (tuple, exporter order) and records:
 
 | Key | Meaning |
 |---|---|
@@ -102,6 +106,9 @@ UTF-8, `\n` line endings, one row per image including failed ones.
 - Rows are sorted by file name, so worker order never changes the file.
 - Cells: `None` → empty, booleans → `true`/`false`, floats → shortest
   round-tripping `repr`. A cell missing for an image (stage not run) is empty.
+- Text cells (file names, errors, string parameters) starting with `=`, `+`,
+  `-`, `@`, tab or carriage return get a leading `'`, so spreadsheets do not
+  evaluate them as formulas. Numbers are never prefixed.
 
 ## `contact_sheet` reporter
 
@@ -117,8 +124,9 @@ row of column titles, then one row per image sorted by file name.
   `retouch.strength`, `defects.method`, `defects.corrected_pixel_count`,
   `qa.flags`. Failures show `FAILED <error_type>: <error>` in red. Every other
   value is in the CSV.
-- Batches over 40 images are split into `contact_sheet.jpg`,
-  `contact_sheet-2.jpg`, … to stay below the JPEG side limit.
+- Batches are split into `contact_sheet.jpg`, `contact_sheet-2.jpg`, … at 40
+  images per page, or fewer when large thumbnails would make a page taller than
+  the JPEG limit of 65 535 px. Pages are rendered and written one at a time.
 - Output is deterministic: Pillow's built-in bitmap font, fixed layout, sRGB
   ICC, quality 90, 4:4:4, no EXIF.
 
