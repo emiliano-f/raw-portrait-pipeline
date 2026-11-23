@@ -52,6 +52,10 @@ flowchart LR
    before any image is touched.
 3. Discovery always passes the output folder in `exclude_dirs`, so outputs are never
    re-read as inputs, even when the output folder sits inside the input folder.
+   Then any input whose output stem (`<input stem><export.filename_suffix>`) matches a
+   `report.*_filename` stem or a contact sheet page (`contact_sheet-N`), case-insensitively,
+   is a usage error (exit 2), even with `--overwrite`: `contact_sheet.CR2` would
+   otherwise collide with `contact_sheet.jpg`.
 4. `PipelineFactory` builds the stages listed in `pipeline.stages`, in that order,
    and the reporters in `report.reporters`, through `Registry.create(name, env)`.
    This happens before the output folder is created: a `ConfigError` raised while
@@ -67,6 +71,9 @@ flowchart LR
 7. Reporters receive outcomes and are finalized in the main process. A reporter
    failure (in `add` or `finalize`) is recorded in `BatchResult.reporter_errors`,
    disables that reporter for the rest of the batch and makes the exit code 1.
+8. With `--overwrite`, contact sheet pages (`contact_sheet-N.jpg`) left by an earlier,
+   longer run and not rewritten by this one are logged as a warning. They are never
+   deleted.
 
 ## Main types
 
@@ -79,6 +86,7 @@ flowchart LR
 | `LoggingObserver`, `ProgressObserver`, `CompositeObserver` | `runtime.observers` | `PipelineObserver` implementations. |
 | `DefectDetectionService` | `runtime.defect_detection` | Streams CFA frames from the decoder into a `DefectDetector`; unreadable frames are skipped and listed. |
 | `RuntimeServices` | `runtime.services` | The io/defects functions the runtime calls (discovery, defects YAML writers, detector constructor), resolved lazily so tests inject fakes. |
+| `report_name_collisions`, `stale_contact_sheet_pages` | `runtime.report_files` | Report-file name guards run before and after the batch. |
 | `process_batch`, `detect_defects`, `save_defect_map` | `runtime.app` | Use cases called by `cli.py`. |
 
 ## Notes

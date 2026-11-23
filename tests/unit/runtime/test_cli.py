@@ -251,3 +251,24 @@ def test_detect_defects_checks_output_before_reading_frames(
     services.detector_cls = EmptyDetector
     assert run("detect-defects", input_dir, "--config", config_path, "--output", input_dir / "x.txt") == 2
     assert services.detectors == []
+
+
+@pytest.mark.parametrize("name", ["contact_sheet.CR2", "report.CR2"])
+def test_process_refuses_inputs_named_like_report_files(
+    run: Run, input_dir: Path, config_path: Path, tmp_path: Path, name: str
+) -> None:
+    write_inputs(input_dir, {name: b"x"})
+    out = tmp_path / "out"
+    assert run("process", input_dir, out, "--config", config_path, "--overwrite") == 2
+    assert name in run.err.getvalue()
+    assert not out.exists()
+
+
+def test_process_warns_about_stale_contact_sheet_pages(
+    run: Run, input_dir: Path, config_path: Path, tmp_path: Path
+) -> None:
+    out = tmp_path / "out"
+    write_inputs(out, {"contact_sheet-2.jpg": b"old"})
+    assert run("process", input_dir, out, "--config", config_path, "--overwrite") == 0
+    assert "contact_sheet-2.jpg is a contact sheet page from an earlier run" in run.err.getvalue()
+    assert (out / "contact_sheet-2.jpg").read_bytes() == b"old"

@@ -17,6 +17,7 @@ from raw_pipeline.runtime.batch import BatchResult, BatchRunner, default_workers
 from raw_pipeline.runtime.components import ComponentRegistries, load_components
 from raw_pipeline.runtime.defect_detection import DefectDetectionResult, DefectDetectionService
 from raw_pipeline.runtime.factory import PipelineFactory
+from raw_pipeline.runtime.report_files import report_name_collisions, stale_contact_sheet_pages
 from raw_pipeline.runtime.services import RuntimeServices
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,12 @@ def process_batch(
     if not sources:
         msg = f"no RAW files found in {request.input_dir}"
         raise InputError(msg)
+    clashes = report_name_collisions(sources, config)
+    if clashes:
+        msg = "output names collide with report files (rename the inputs or change report.*_filename): " + "; ".join(
+            clashes
+        )
+        raise InputError(msg)
     workers = request.workers or config.pipeline.workers or default_workers()
     env = BuildEnv(config=config, output_dir=request.output_dir, overwrite=request.overwrite)
     factory = PipelineFactory(regs)
@@ -93,7 +100,11 @@ def process_batch(
     reporters = factory.build_reporters(env)
     request.output_dir.mkdir(parents=True, exist_ok=True)
     logger.info("stages: %s; workers: %d", ", ".join(pipeline.stage_names), workers)
-    return BatchRunner(pipeline, workers, observer).run(sources, reporters, request.output_dir)
+    result = BatchRunner(pipeline, workers, observer).run(sources, reporters, request.output_dir)
+    if request.overwrite:
+        for page in stale_contact_sheet_pages(request.output_dir, config, result.report_paths):
+            logger.warning("%s is a contact sheet page from an earlier run; this run did not replace it", page)
+    return result
 
 
 def detect_defects(
