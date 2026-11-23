@@ -8,7 +8,8 @@ from typing import Any
 
 import pytest
 
-from raw_pipeline.qa.transport import MAX_RESPONSE_BYTES, HttpRequest, TransportError, UrllibTransport
+from raw_pipeline.qa import transport as transport_module
+from raw_pipeline.qa.transport import MAX_RESPONSE_BYTES, HttpRequest, RefuseRedirects, TransportError, UrllibTransport
 
 REQUEST = HttpRequest(
     url="https://llm.example/v1/chat/completions",
@@ -29,14 +30,14 @@ class _Response(io.BytesIO):
 def _patch_urlopen(monkeypatch: pytest.MonkeyPatch, behaviour: Any) -> list[tuple[urllib.request.Request, float]]:
     calls: list[tuple[urllib.request.Request, float]] = []
 
-    def fake_urlopen(req: urllib.request.Request, timeout: float) -> _Response:
-        calls.append((req, timeout))
+    def fake_open(req: urllib.request.Request, timeout_s: float) -> _Response:
+        calls.append((req, timeout_s))
         if isinstance(behaviour, BaseException):
             raise behaviour
         return _Response(behaviour)
 
-    # urllib is the adapter's own third-party boundary; no socket is opened.
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    # open_url is the adapter's boundary to the network; no socket is opened.
+    monkeypatch.setattr(transport_module, "open_url", fake_open)
     return calls
 
 
@@ -75,3 +76,28 @@ def test_oversized_response_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_request_repr_hides_headers() -> None:
     assert "secret-123" not in repr(REQUEST)
+
+
+def test_redirects_are_refused() -> None:
+    req = urllib.request.Request(REQUEST.url, data=b"{}", headers=dict(REQUEST.headers), method="POST")
+    with pytest.raises(urllib.error.HTTPError, match="redirect refused") as info:
+        RefuseRedirects().redirect_request(req, io.BytesIO(), 302, "Found", Message(), "http://evil.example/")
+    assert info.value.code == 302
+
+
+def test_opener_uses_refuse_redirects(monkeypatch: pytest.MonkeyPatch) -> None:
+    handlers: list[object] = []
+
+    class _Opener:
+        def open(self, req: urllib.request.Request, timeout: float) -> str:
+            del req, timeout
+            return "response"
+
+    def fake_build_opener(*h: object) -> _Opener:
+        handlers.extend(h)
+        return _Opener()
+
+    monkeypatch.setattr(urllib.request, "build_opener", fake_build_opener)
+    req = urllib.request.Request(REQUEST.url)
+    assert transport_module.open_url(req, 1.0) == "response"
+    assert any(isinstance(h, RefuseRedirects) for h in handlers)

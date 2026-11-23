@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import http.client
+import urllib.error
 import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Final, Protocol
+from email.message import Message
+from typing import IO, Final, Protocol, override
 
 MAX_RESPONSE_BYTES: Final = 1_048_576
 """Responses larger than this (bytes) are rejected instead of being read into memory."""
@@ -44,6 +47,34 @@ class HttpTransport(Protocol):
         ...
 
 
+class RefuseRedirects(urllib.request.HTTPRedirectHandler):
+    """Fails on any 3xx instead of following it.
+
+    Following a redirect would resend the request, including the bearer token,
+    to a host (or plain-HTTP URL) that endpoint validation never checked.
+    """
+
+    @override
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: Message,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        """Raise ``HTTPError`` for every redirect."""
+        del newurl
+        raise urllib.error.HTTPError(req.full_url, code, f"redirect refused ({msg})", headers, fp)
+
+
+def open_url(req: urllib.request.Request, timeout_s: float) -> http.client.HTTPResponse:
+    """Open ``req`` with an opener that refuses redirects."""
+    response: http.client.HTTPResponse = urllib.request.build_opener(RefuseRedirects()).open(req, timeout=timeout_s)
+    return response
+
+
 class UrllibTransport:
     """Standard-library transport (``urllib.request``); no third-party HTTP client needed."""
 
@@ -51,7 +82,7 @@ class UrllibTransport:
         """POST with ``urllib``; see :meth:`HttpTransport.post`."""
         req = urllib.request.Request(request.url, data=request.body, headers=dict(request.headers), method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=request.timeout_s) as resp:
+            with open_url(req, request.timeout_s) as resp:
                 body: bytes = resp.read(MAX_RESPONSE_BYTES + 1)
         except (OSError, ValueError) as exc:
             # HTTPError/URLError/TimeoutError are OSErrors; their text never includes request headers.
