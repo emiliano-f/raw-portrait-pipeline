@@ -111,10 +111,30 @@ def test_missing_model_raises_detection_error(tmp_path: Path) -> None:
         MediaPipeDetector(0.5, model_dir=tmp_path).detect(PREVIEW)
 
 
+def _real_mediapipe() -> MediaPipeDetector:
+    """The real detector, or skip when MediaPipe or its native libraries cannot load here."""
+    detector = MediaPipeDetector(0.6)
+    try:
+        detector.detect(np.zeros((64, 64, 3), dtype=np.uint8))
+    except DetectionError as exc:
+        pytest.skip(f"MediaPipe unusable on this host: {exc}")
+    return detector
+
+
+def test_native_library_failure_raises_detection_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    vision = pytest.importorskip("mediapipe.tasks.python.vision")
+
+    def _no_egl(*_: object) -> object:
+        raise OSError("libEGL.so.1: cannot open shared object file")
+
+    monkeypatch.setattr(vision.FaceDetector, "create_from_options", _no_egl)
+    with pytest.raises(DetectionError, match="native library"):
+        MediaPipeDetector(0.5).detect(PREVIEW)
+
+
 class TestMediaPipeDetectorContract(FaceDetectorContract):
     def make_detector(self) -> FaceDetector:
-        pytest.importorskip("mediapipe")
-        return MediaPipeDetector(0.6)
+        return _real_mediapipe()
 
 
 def _face_samples() -> list[Path]:
@@ -127,11 +147,10 @@ def _face_samples() -> list[Path]:
 @pytest.mark.slow
 @pytest.mark.parametrize("path", _face_samples() or [pytest.param(None, marks=pytest.mark.skip("no face samples"))])
 def test_real_face_found_with_mesh(path: Path) -> None:
-    pytest.importorskip("mediapipe")
     from PIL import Image  # noqa: PLC0415
 
     preview = np.asarray(Image.open(path).convert("RGB"))
-    faces = MediaPipeDetector(0.6).detect(preview)
+    faces = _real_mediapipe().detect(preview)
     assert faces
     assert faces[0].landmarks is not None
     assert faces[0].landmarks.shape == (478, 2)

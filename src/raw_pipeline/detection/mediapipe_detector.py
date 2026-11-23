@@ -98,6 +98,8 @@ class MediaPipeTasksBackend:
         try:
             with self._vision.FaceDetector.create_from_options(options) as task:
                 result = task.detect(self._image(preview))
+        except OSError as exc:
+            raise _native_library_error(exc) from exc
         except (RuntimeError, ValueError) as exc:
             msg = f"MediaPipe face detection failed: {exc}"
             raise DetectionError(msg) from exc
@@ -121,6 +123,8 @@ class MediaPipeTasksBackend:
         try:
             with self._vision.FaceLandmarker.create_from_options(options) as task:
                 result = task.detect(self._image(preview))
+        except OSError as exc:
+            raise _native_library_error(exc) from exc
         except (RuntimeError, ValueError) as exc:
             msg = f"MediaPipe face landmarker failed: {exc}"
             raise DetectionError(msg) from exc
@@ -130,6 +134,12 @@ class MediaPipeTasksBackend:
             (np.asarray([(p.x, p.y) for p in face], dtype=np.float32) * scale).astype(np.float32)
             for face in result.face_landmarks
         ]
+
+
+def _native_library_error(exc: OSError) -> DetectionError:
+    # The Tasks C library is loaded lazily on first task creation and needs system
+    # libraries (e.g. libEGL/libGLES on Linux) that minimal hosts may lack.
+    return DetectionError(f"MediaPipe native library could not be loaded ({exc}); use the 'opencv' detector")
 
 
 def _import_mediapipe() -> tuple[Any, Any, Any]:
