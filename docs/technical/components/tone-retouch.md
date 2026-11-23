@@ -34,9 +34,10 @@ Input and output are scene-linear working-space RGB; nothing is clipped.
 luminance `W` (that much headroom above diffuse white) lands exactly on 1.0;
 brighter values keep rising towards `s + k` (> 1), so the exporter does the
 only clip. Both knees have slope 1, so the curve is C1. It is strictly
-monotonic while `shadow_lift_ev < 2 / ln 2 ≈ 2.885 EV`; the stage rejects larger
-values, `highlight_rolloff_start_ev >= 0` and non-positive pivots with a
-`ConfigError` when it is built. Knees are evaluated in float64 on the affected
+monotonic while `shadow_lift_ev < 2 / ln 2 ≈ 2.885 EV`; `ToneConfig` caps it
+at 2.0 EV. When it is built, the stage re-checks that bound (defense in depth)
+and also rejects `highlight_rolloff_start_ev >= 0` and non-positive pivots
+with a `ConfigError`. Knees are evaluated in float64 on the affected
 pixels only, so float32 rounding cannot break monotonicity.
 
 With the defaults (`-1 EV`, `1.5 EV`, `0.3 EV`, `0.05`) the curve is the
@@ -62,7 +63,11 @@ Per face, in a region around the face box padded by three smoothing sigmas:
       convex hull of the face oval minus the hulls of each eye (with iris),
       eyebrow, the lips (covers the mouth interior and teeth) and the
       nose tip/alae (nostrils). Protected hulls are dilated by 3 % of the face
-      box width. Landmark indices come from MediaPipe's `FaceLandmarksConnections`.
+      box width. Landmark indices come from MediaPipe's `FaceLandmarksConnections`,
+      except the nostril set, which MediaPipe does not define:
+      `NOSTRILS = (1, 2, 4, 48, 64, 94, 97, 98, 278, 294, 326, 327)`
+      (nose tip, columella, alae). **Verified on synthetic faces only**; check
+      it when tuning on real CR2s.
     - Otherwise (OpenCV fallback, other schemes): an ellipse inscribed in the
       box minus an eye/brow band across the box (15-55 % of the box height), a nose
       box and a mouth box. Generous on purpose: detector boxes vary.
