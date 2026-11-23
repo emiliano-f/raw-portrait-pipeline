@@ -9,6 +9,7 @@ on them and outside the face.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final
 
@@ -50,7 +51,7 @@ PROTECT_MARGIN_FACE_FRACTION: Final = 0.03
 ELLIPSE_AXIS_FRACTION: Final = 0.45
 """Ellipse semi-axes as a fraction of box width / height."""
 EYE_BAND_Y_FRACTION: Final = (0.15, 0.55)
-"""Full-width band (top, bottom) protecting eyes and eyebrows."""
+"""Band (top, bottom) across the face box protecting eyes and eyebrows."""
 NOSE_BOX_FRACTION: Final = (0.33, 0.45, 0.67, 0.72)
 """(x0, y0, x1, y1) protecting the nose tip and nostrils."""
 MOUTH_BOX_FRACTION: Final = (0.22, 0.62, 0.78, 0.92)
@@ -86,49 +87,61 @@ class SkinMaskBuilder:
 
     feather_px: int
 
-    def build(self, face: FaceRegion, origin: tuple[int, int], shape: tuple[int, int]) -> SkinMask:
+    def build(
+        self,
+        face: FaceRegion,
+        origin: tuple[int, int],
+        shape: tuple[int, int],
+        others: Sequence[FaceRegion] = (),
+    ) -> SkinMask:
         """Return the mask of ``face`` (full-resolution coordinates) in a region.
 
         Args:
             face: Face in full-resolution image coordinates.
             origin: ``(x, y)`` of the region's top-left corner in the image.
             shape: ``(height, width)`` of the region in pixels.
+            others: Other faces in the image; their protected features are also
+                excluded, so overlapping faces never smooth each other's eyes or lips.
         """
-        if has_face_mesh(face):
-            hard, source = self._landmark_mask(face, origin, shape), "landmarks"
-        else:
-            hard, source = self._ellipse_mask(face, origin, shape), "ellipse"
+        skin, source = self._skin(face, origin, shape)
+        protected = self._protected(face, origin, shape)
+        for other in others:
+            protected |= self._protected(other, origin, shape)
+        hard = np.asarray(skin & ~protected, dtype=np.bool_)
         return SkinMask(hard=hard, soft=self._feather(hard), source=source)
 
-    def _landmark_mask(self, face: FaceRegion, origin: tuple[int, int], shape: tuple[int, int]) -> NDArray[np.bool_]:
-        assert face.landmarks is not None
-        points = face.landmarks - np.asarray(origin, dtype=np.float32)
-        skin = _hull_mask(points[list(FACE_OVAL)], shape)
-        protected = np.zeros(shape, dtype=np.uint8)
-        for region in PROTECTED_REGIONS:
-            protected |= _hull_mask(points[list(region)], shape)
-        margin = max(1, round(PROTECT_MARGIN_FACE_FRACTION * face.box.width))
-        protected = _dilate(protected, margin)
-        return np.asarray((skin > 0) & (protected == 0), dtype=np.bool_)
-
-    def _ellipse_mask(self, face: FaceRegion, origin: tuple[int, int], shape: tuple[int, int]) -> NDArray[np.bool_]:
+    def _skin(self, face: FaceRegion, origin: tuple[int, int], shape: tuple[int, int]) -> tuple[NDArray[np.bool_], str]:
+        if has_face_mesh(face):
+            assert face.landmarks is not None
+            points = face.landmarks - np.asarray(origin, dtype=np.float32)
+            return _hull_mask(points[list(FACE_OVAL)], shape) > 0, "landmarks"
         box = face.box
         ox, oy = origin
         skin = np.zeros(shape, dtype=np.uint8)
         center = (round((box.x0 + box.x1) / 2 - ox), round((box.y0 + box.y1) / 2 - oy))
         axes = (max(1, round(box.width * ELLIPSE_AXIS_FRACTION)), max(1, round(box.height * ELLIPSE_AXIS_FRACTION)))
         cv2.ellipse(skin, center, axes, 0.0, 0.0, 360.0, 1, thickness=-1)
+        return skin > 0, "ellipse"
 
-        def rows(f0: float, f1: float) -> slice:
-            return _span(box.y0 + f0 * box.height, box.y0 + f1 * box.height, oy)
-
-        def cols(f0: float, f1: float) -> slice:
-            return _span(box.x0 + f0 * box.width, box.x0 + f1 * box.width, ox)
-
-        skin[rows(*EYE_BAND_Y_FRACTION), :] = 0
-        for x0, y0, x1, y1 in (NOSE_BOX_FRACTION, MOUTH_BOX_FRACTION):
-            skin[rows(y0, y1), cols(x0, x1)] = 0
-        return np.asarray(skin > 0, dtype=np.bool_)
+    def _protected(self, face: FaceRegion, origin: tuple[int, int], shape: tuple[int, int]) -> NDArray[np.bool_]:
+        """Eyes, brows, lips, mouth and nostrils of ``face`` in the region (with safety margin)."""
+        if has_face_mesh(face):
+            assert face.landmarks is not None
+            points = face.landmarks - np.asarray(origin, dtype=np.float32)
+            protected = np.zeros(shape, dtype=np.uint8)
+            for region in PROTECTED_REGIONS:
+                protected |= _hull_mask(points[list(region)], shape)
+            margin = max(1, round(PROTECT_MARGIN_FACE_FRACTION * face.box.width))
+            return _dilate(protected, margin) > 0
+        box = face.box
+        ox, oy = origin
+        out = np.zeros(shape, dtype=np.bool_)
+        eye_y0, eye_y1 = EYE_BAND_Y_FRACTION
+        for x0, y0, x1, y1 in ((0.0, eye_y0, 1.0, eye_y1), NOSE_BOX_FRACTION, MOUTH_BOX_FRACTION):
+            rows = _span(box.y0 + y0 * box.height, box.y0 + y1 * box.height, oy)
+            cols = _span(box.x0 + x0 * box.width, box.x0 + x1 * box.width, ox)
+            out[rows, cols] = True
+        return out
 
     def _feather(self, hard: NDArray[np.bool_]) -> NDArray[np.float32]:
         if self.feather_px == 0 or not hard.any():

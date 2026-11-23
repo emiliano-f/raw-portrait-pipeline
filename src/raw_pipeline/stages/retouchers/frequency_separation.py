@@ -40,7 +40,8 @@ class FrequencySeparationRetoucher:
     (sigma x :data:`SMOOTHING_SIGMA_FACTOR`), and the result is blended back as
     ``image + strength * mask * (smooth(L) - L)``. Blurs are normalised by the
     skin mask, so hair, eyes or background never bleed into the skin. Pixels
-    where the mask is 0 (outside the face, eyes, brows, lips, nostrils) are
+    where the mask is 0 (outside the face, eyes, brows, lips, nostrils, also
+    those of any other overlapping face) are
     returned bit-for-bit. Works on scene-linear working-space RGB; no clipping.
 
     Attributes:
@@ -76,14 +77,15 @@ class FrequencySeparationRetoucher:
         covered = np.zeros(image.shape[:2], dtype=np.bool_)
         sources: set[str] = set()
         max_sigma = 0.0
-        for face in faces:
+        for index, face in enumerate(faces):
             sigma = max(MIN_SPLIT_SIGMA_PX, self.blur_radius_face_fraction * face.box.width)
             region = _face_region(face, sigma * SMOOTHING_SIGMA_FACTOR * GAUSSIAN_SUPPORT_SIGMAS, image.shape[:2])
             if region is None:
                 continue
             rows, cols = region
             origin, size = (cols.start, rows.start), (rows.stop - rows.start, cols.stop - cols.start)
-            mask = self.mask_builder.build(face, origin, size)
+            others = [other for j, other in enumerate(faces) if j != index]
+            mask = self.mask_builder.build(face, origin, size, others)
             if not mask.hard.any():
                 continue
             out[rows, cols] = self._smooth(out[rows, cols], mask.hard, mask.soft, sigma)

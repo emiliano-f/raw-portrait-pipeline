@@ -64,8 +64,10 @@ Per face, in a region around the face box padded by three smoothing sigmas:
       nose tip/alae (nostrils). Protected hulls are dilated by 3 % of the face
       box width. Landmark indices come from MediaPipe's `FaceLandmarksConnections`.
     - Otherwise (OpenCV fallback, other schemes): an ellipse inscribed in the
-      box minus a full-width eye/brow band (15-55 % of the box height), a nose
+      box minus an eye/brow band across the box (15-55 % of the box height), a nose
       box and a mouth box. Generous on purpose: detector boxes vary.
+    - The protected features of every *other* face in the image are removed
+      too, so overlapping faces (group shots) never smooth each other's eyes or lips.
     - The hard mask is feathered *inwards* over `mask_feather_px` (smoothstep of
       the distance to the mask edge), so the soft mask is exactly 0 outside the
       face and on every protected feature.

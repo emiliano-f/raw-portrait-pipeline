@@ -123,6 +123,16 @@ def test_two_faces_mixed_sources() -> None:
     assert result.params["faces_retouched"] == 2
 
 
+def test_overlapping_face_features_are_protected() -> None:
+    img = np.concatenate([skin_image(), skin_image(seed=1)], axis=1)
+    left = mesh_face(cx=100.0)
+    right = mesh_face(cx=170.0)
+    result = retoucher().retouch(img, [left.face, right.face])
+    features = left.feature_mask(200, 400) | right.feature_mask(200, 400)
+    np.testing.assert_array_equal(result.image[features], img[features])
+    assert not np.array_equal(result.image, img)
+
+
 def test_registered_and_built_from_config() -> None:
     cfg = AppConfig(retouch=RetouchConfig(strength=0.1, mask_feather_px=3, blur_radius_face_fraction=0.02))
     env = BuildEnv(config=cfg, output_dir=Path("out"))
