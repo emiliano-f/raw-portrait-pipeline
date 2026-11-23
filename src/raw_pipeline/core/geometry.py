@@ -58,5 +58,7 @@ def preview_to_full(face: FaceRegion, geometry: PreviewGeometry) -> FaceRegion:
     landmarks = None
     if face.landmarks is not None:
         scale = np.asarray([geometry.scale_x, geometry.scale_y], dtype=np.float32)
-        landmarks = (face.landmarks.astype(np.float32) * scale).astype(np.float32)
+        upper = np.asarray([geometry.full_width, geometry.full_height], dtype=np.float32)
+        scaled = face.landmarks.astype(np.float32) * scale
+        landmarks = np.clip(scaled, 0.0, upper).astype(np.float32)
     return replace(face, box=box, landmarks=landmarks)

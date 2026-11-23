@@ -41,3 +41,18 @@ def test_preview_to_full_clips_to_frame() -> None:
     full = preview_to_full(FaceRegion(BoundingBox(90, 40, 120, 60), 0.5, "fake"), g)
     assert full.box == BoundingBox(180, 80, 200, 100)
     assert full.landmarks is None
+
+
+def test_preview_to_full_clips_landmarks_to_frame() -> None:
+    g = PreviewGeometry(full_width=200, full_height=100, preview_width=100, preview_height=50)
+    face = FaceRegion(
+        BoundingBox(90, 40, 100, 50),
+        0.5,
+        "fake",
+        landmarks=np.asarray([[-3, 10], [120, 60]], dtype=np.float32),
+        landmark_scheme="fake",
+    )
+    full = preview_to_full(face, g)
+    assert full.landmarks is not None
+    np.testing.assert_allclose(full.landmarks, [[0, 20], [200, 100]])
+    assert full.landmarks.dtype == np.float32
