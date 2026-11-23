@@ -155,3 +155,10 @@ def test_schema_has_descriptions() -> None:
     schema = config_json_schema()
     meter = schema["$defs"]["MeterConfig"]["properties"]
     assert "description" in meter["target_face_luminance"]
+
+
+def test_non_utf8_config_is_config_error(tmp_path: Path) -> None:
+    path = tmp_path / "bad.yaml"
+    path.write_bytes(b"meter:\n  strategy: \xff\xfe\n")
+    with pytest.raises(ConfigError, match="cannot read"):
+        load_config(path)

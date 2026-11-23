@@ -39,7 +39,7 @@ def load_config(path: Path | None) -> AppConfig:
         return AppConfig()
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         msg = f"cannot read config file {path}: {exc}"
         raise ConfigError(msg) from exc
     try:
