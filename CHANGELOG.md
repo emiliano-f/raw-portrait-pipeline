@@ -12,3 +12,6 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Configuration models, YAML loading and component-name validation; `config.example.yaml`.
 - Contract test suites for stages, defect correctors, exporters, face detectors,
   metering strategies and QA providers.
+- Export and report: `jpeg` and 16-bit `tiff` exporters (sRGB ICC, descriptive EXIF,
+  GPS stripped by default, no silent overwrite, byte-identical reruns), `export` and
+  `report` stages, `csv` and `contact_sheet` batch reporters.
