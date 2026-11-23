@@ -44,3 +44,22 @@ def test_unwritable_location_is_export_error(tmp_path: Path) -> None:
     blocker.write_bytes(b"")
     with pytest.raises(ExportError, match="cannot create"):
         write_output(blocker / "a.bin", _write_ok, overwrite=False)
+
+
+def test_failed_overwrite_keeps_previous_file(tmp_path: Path) -> None:
+    target = tmp_path / "a.bin"
+    target.write_bytes(b"original")
+    with pytest.raises(ExportError, match="encoder failed"):
+        write_output(target, _write_fail, overwrite=True)
+    assert target.read_bytes() == b"original"
+    assert [p.name for p in tmp_path.iterdir()] == ["a.bin"]
+
+
+def test_overwrite_replaces_with_default_permissions(tmp_path: Path) -> None:
+    fresh = write_output(tmp_path / "fresh.bin", _write_ok, overwrite=False)
+    target = tmp_path / "a.bin"
+    target.write_bytes(b"original")
+    write_output(target, _write_ok, overwrite=True)
+    assert target.read_bytes() == b"data"
+    assert target.stat().st_mode == fresh.stat().st_mode
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["a.bin", "fresh.bin"]
