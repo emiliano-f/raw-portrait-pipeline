@@ -5,3 +5,4 @@
 ::: raw_pipeline.config.loader
 ::: raw_pipeline.config.validation
 ::: raw_pipeline.config.defects
+::: raw_pipeline.config.schema

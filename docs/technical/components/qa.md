@@ -92,10 +92,4 @@ limit.
 
 ## API
 
-::: raw_pipeline.stages.qa
-::: raw_pipeline.qa.null
-::: raw_pipeline.qa.openai_compatible
-::: raw_pipeline.qa.preview
-::: raw_pipeline.qa.response
-::: raw_pipeline.qa.target
-::: raw_pipeline.qa.transport
+Generated reference: [`raw_pipeline.qa`](../api/qa.md), [`raw_pipeline.stages`](../api/stages.md).

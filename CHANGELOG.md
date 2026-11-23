@@ -31,3 +31,12 @@ All notable changes to this project are documented here. Format: [Keep a Changel
   API errors skip QA with a warning; flags in `qa.*` CSV columns.
 - Runtime and CLI: component discovery, pipeline factory, serial/parallel batch runner,
   observers, defect detection service, `raw-pipeline process` and `raw-pipeline detect-defects`.
+- Documentation: functional guide (getting started, usage, configuration, stages, QA and
+  privacy, troubleshooting), technical guide (architecture, extending, colour pipeline,
+  testing) and API reference for every package. The configuration reference, component
+  list and import rules are generated from the code at build time, and the strict docs
+  build fails when a config field lacks a description or a component is undocumented.
+- Slow integration tests (`tests/integration/`) running the CLI end to end on local CR2
+  samples (`tests/fixtures/` or `RAW_PIPELINE_SAMPLES`): output size and sRGB ICC,
+  clipping, untouched inputs, overwrite refusal, byte-identical reruns, face target.
+- CI: lint, format, mypy, import contracts, tests with coverage and the strict docs build.

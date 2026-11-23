@@ -134,12 +134,4 @@ row of column titles, then one row per image sorted by file name.
 
 ## API
 
-::: raw_pipeline.exporters.encoding
-::: raw_pipeline.exporters.exif
-::: raw_pipeline.exporters.output
-::: raw_pipeline.exporters.jpeg
-::: raw_pipeline.exporters.tiff
-::: raw_pipeline.stages.export
-::: raw_pipeline.stages.report
-::: raw_pipeline.exporters.reporters.csv_report
-::: raw_pipeline.exporters.reporters.contact_sheet
+Generated reference: [`raw_pipeline.exporters`](../api/exporters.md), [`raw_pipeline.stages`](../api/stages.md).

@@ -107,8 +107,4 @@ or without faces, ellipse fallback, faces cut by the image border.
 
 ## API
 
-::: raw_pipeline.stages.tone
-::: raw_pipeline.stages.retouch
-::: raw_pipeline.stages.retouchers.frequency_separation
-::: raw_pipeline.stages.retouchers.skin_mask
-::: raw_pipeline.stages.retouchers.null
+Generated reference: [`raw_pipeline.stages`](../api/stages.md).

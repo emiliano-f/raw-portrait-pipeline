@@ -20,4 +20,6 @@ jobs:
       - run: uv run mypy src
       - run: uv run lint-imports
       - run: uv run pytest -m "not slow" --cov --cov-report=term
-      - run: uv run mkdocs build --strict
+      - run: uv run mkdocs build --strict  # fails on broken links and on drift in the generated docs sections
+        env:
+          NO_MKDOCS_2_WARNING: "1"

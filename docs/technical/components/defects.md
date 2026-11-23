@@ -126,9 +126,4 @@ under 0.1 s for either corrector.
 
 ## API
 
-::: raw_pipeline.defects.null
-::: raw_pipeline.defects.neighbor_average
-::: raw_pipeline.defects.directional
-::: raw_pipeline.defects.sampling
-::: raw_pipeline.defects.detection
-::: raw_pipeline.defects.statistics
+Generated reference: [`raw_pipeline.defects`](../api/defects.md).

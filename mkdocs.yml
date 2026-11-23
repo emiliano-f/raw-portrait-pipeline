@@ -3,6 +3,10 @@ repo_url: https://github.com/emiliano-f/raw-portrait-pipeline
 theme:
   name: material
   features: [navigation.sections, content.code.copy]
+exclude_docs: |
+  _hooks/
+hooks:
+  - docs/_hooks/generated.py
 markdown_extensions:
   - admonition
   - tables
@@ -22,3 +26,43 @@ plugins:
           options:
             docstring_style: google
             show_source: false
+nav:
+  - Home: index.md
+  - User guide:
+      - Getting started: functional/getting-started.md
+      - Usage: functional/usage.md
+      - Configuration: functional/configuration.md
+      - Stages: functional/stages.md
+      - QA and privacy: functional/qa-and-privacy.md
+      - Troubleshooting: functional/troubleshooting.md
+  - Contributor guide:
+      - Architecture: technical/architecture.md
+      - Core contracts: technical/core-contracts.md
+      - Extending: technical/extending.md
+      - Colour pipeline: technical/color-pipeline.md
+      - Testing: technical/testing.md
+      - Components:
+          - Decode and IO: technical/components/decode-io.md
+          - Defects: technical/components/defects.md
+          - Detection and metering: technical/components/detection-metering.md
+          - Tone and retouch: technical/components/tone-retouch.md
+          - Export and report: technical/components/export-report.md
+          - QA: technical/components/qa.md
+          - Runtime and CLI: technical/components/runtime-cli.md
+      - API reference:
+          - core: technical/api/core.md
+          - config: technical/api/config.md
+          - io: technical/api/io.md
+          - defects: technical/api/defects.md
+          - detection: technical/api/detection.md
+          - metering: technical/api/metering.md
+          - stages: technical/api/stages.md
+          - exporters: technical/api/exporters.md
+          - qa: technical/api/qa.md
+          - runtime: technical/api/runtime.md
+          - cli: technical/api/cli.md
+  - Decisions:
+      - ADR 0001 Architecture and core contracts: adr/0001-architecture-and-core-contracts.md
+      - ADR 0002 Raw-level defect correction: adr/0002-raw-level-defect-correction.md
+  - Plan:
+      - Initial build: plan/initial-build.md
