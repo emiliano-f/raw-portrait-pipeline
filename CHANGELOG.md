@@ -20,3 +20,5 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Detection and metering: `meter` stage with MediaPipe Tasks face detection + 478-point
   mesh (vendored Apache-2.0 models, offline), OpenCV Haar fallback, `face_weighted` and
   `center_weighted` metering with EV clamp.
+- `tone` stage (EV exposure, C1 highlight shoulder and shadow lift on luminance) and
+  `retouch` stage with `none` and `frequency_separation` retouchers (face-mesh skin mask).
