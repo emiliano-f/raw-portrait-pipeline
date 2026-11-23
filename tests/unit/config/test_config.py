@@ -175,3 +175,17 @@ def test_duplicate_yaml_keys_are_rejected(tmp_path: Path) -> None:
 def test_empty_defect_ranges_are_rejected(entry: dict[str, int]) -> None:
     with pytest.raises(ConfigError, match="end must be greater than start"):
         parse_config({"defects": {"map": [{"type": "row", "index": 3, **entry}]}})
+
+
+def test_yaml_merge_keys_are_supported(tmp_path: Path) -> None:
+    path = tmp_path / "merge.yaml"
+    path.write_text(
+        "base: &base {target_face_luminance: 0.2}\nmeter:\n  <<: *base\n  strategy: center_weighted\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="base"):
+        load_config(path)  # unknown top-level key, but the merge itself parses
+    path.write_text("meter:\n  <<: {target_face_luminance: 0.2}\n  strategy: center_weighted\n", encoding="utf-8")
+    cfg = load_config(path)
+    assert cfg.meter.target_face_luminance == 0.2
+    assert cfg.meter.strategy == "center_weighted"

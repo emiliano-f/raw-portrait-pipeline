@@ -13,6 +13,9 @@ from raw_pipeline.config.models import AppConfig
 from raw_pipeline.core.errors import ConfigError
 
 
+_MERGE_TAG = "tag:yaml.org,2002:merge"
+
+
 class _UniqueKeyLoader(yaml.SafeLoader):
     """Safe loader that rejects duplicate mapping keys instead of keeping the last."""
 
@@ -20,6 +23,8 @@ class _UniqueKeyLoader(yaml.SafeLoader):
 def _construct_unique_mapping(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[Any, Any]:
     seen: set[Any] = set()
     for key_node, _ in node.value:
+        if key_node.tag == _MERGE_TAG:
+            continue
         key = loader.construct_object(key_node)
         if key in seen:
             msg = f"duplicate key {key!r}"
