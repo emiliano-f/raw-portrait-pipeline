@@ -12,32 +12,42 @@ from pydantic import ValidationError
 from raw_pipeline.config.models import AppConfig
 from raw_pipeline.core.errors import ConfigError
 
-_MERGE_TAG = "tag:yaml.org,2002:merge"
-
 
 class _UniqueKeyLoader(yaml.SafeLoader):
-    """Safe loader that rejects duplicate mapping keys instead of keeping the last."""
+    """Safe loader that rejects duplicate or non-scalar mapping keys.
+
+    Keys are checked on the composed node graph, before PyYAML flattens ``<<``
+    merges, so every mapping written in the file (merge sources included) is
+    checked exactly as written, and keys a merge overrides are not duplicates.
+    """
+
+    def construct_document(self, node: yaml.Node) -> object:
+        _check_mapping_keys(node)
+        return super().construct_document(node)
 
 
-def _construct_unique_mapping(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[Any, Any]:
-    seen: set[Any] = set()
-    for key_node, _ in node.value:
-        if key_node.tag == _MERGE_TAG:
+def _check_mapping_keys(root: yaml.Node) -> None:
+    pending: list[yaml.Node] = [root]
+    visited: set[int] = set()
+    while pending:
+        node = pending.pop()
+        if id(node) in visited:
             continue
-        key = loader.construct_object(key_node)
-        try:
-            duplicate = key in seen
-        except TypeError:
-            msg = f"unhashable key {key!r}"
-            raise yaml.constructor.ConstructorError(None, None, msg, key_node.start_mark) from None
-        if duplicate:
-            msg = f"duplicate key {key!r}"
-            raise yaml.constructor.ConstructorError(None, None, msg, key_node.start_mark)
-        seen.add(key)
-    return loader.construct_mapping(node)
-
-
-_UniqueKeyLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_unique_mapping)
+        visited.add(id(node))
+        if isinstance(node, yaml.MappingNode):
+            seen: set[tuple[str, str]] = set()
+            for key_node, value_node in node.value:
+                if not isinstance(key_node, yaml.ScalarNode):
+                    msg = "mapping keys must be plain scalars"
+                    raise yaml.constructor.ConstructorError(None, None, msg, key_node.start_mark)
+                key = (key_node.tag, key_node.value)
+                if key in seen:
+                    msg = f"duplicate key {key_node.value!r}"
+                    raise yaml.constructor.ConstructorError(None, None, msg, key_node.start_mark)
+                seen.add(key)
+                pending.append(value_node)
+        elif isinstance(node, yaml.SequenceNode):
+            pending.extend(node.value)
 
 
 def parse_config(data: Mapping[str, Any] | None) -> AppConfig:

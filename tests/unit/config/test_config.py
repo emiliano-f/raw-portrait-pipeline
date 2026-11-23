@@ -3,9 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
 
 from raw_pipeline.config import AppConfig, app_config, load_config, parse_config, validate_components
 from raw_pipeline.config.defects import entry_to_yaml_dict, to_defect_map, to_entry
+from raw_pipeline.config.loader import _UniqueKeyLoader
 from raw_pipeline.config.models import DefectEntry
 from raw_pipeline.config.schema import config_json_schema
 from raw_pipeline.config.validation import component_references
@@ -196,3 +198,36 @@ def test_unhashable_yaml_key_is_config_error(tmp_path: Path) -> None:
     path.write_text("? [a, b]\n: 1\n", encoding="utf-8")
     with pytest.raises(ConfigError, match="not valid YAML"):
         load_config(path)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "meter:\n  <<: {strategy: center_weighted}\n  <<: {target_face_luminance: 0.2}\n",
+        "meter:\n  <<: {target_face_luminance: 0.2, target_face_luminance: 0.3}\n",
+    ],
+)
+def test_duplicate_keys_in_merges_are_rejected(tmp_path: Path, text: str) -> None:
+    path = tmp_path / "dup-merge.yaml"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(ConfigError, match="duplicate key"):
+        load_config(path)
+
+
+def test_aliased_merge_source_with_override_is_accepted(tmp_path: Path) -> None:
+    path = tmp_path / "alias.yaml"
+    path.write_text(
+        "meter: &m\n  <<: {target_face_luminance: 0.2}\n  target_face_luminance: 0.25\n"
+        "tone:\n  shadow_lift_ev: 0.1\n"
+        "export: {<<: {jpeg_quality: 90}, jpeg_quality: 95}\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(path)
+    assert cfg.meter.target_face_luminance == 0.25
+    assert cfg.export.jpeg_quality == 95
+
+
+def test_reused_merge_source_with_override_parses() -> None:
+    text = "a: &a {<<: {k: 1}, k: 2}\nb: {<<: *a}\nc: *a\n"
+    data = yaml.load(text, Loader=_UniqueKeyLoader)
+    assert data == yaml.safe_load(text)
