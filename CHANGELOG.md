@@ -25,3 +25,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Export and report: `jpeg` and 16-bit `tiff` exporters (sRGB ICC, descriptive EXIF,
   GPS stripped by default, no silent overwrite, byte-identical reruns), `export` and
   `report` stages, `csv` and `contact_sheet` batch reporters.
+- Optional vision-LLM QA: `qa` stage (EXIF-free JPEG preview, long edge <= 1024 px),
+  `none` and `openai_compatible` providers (standard-library HTTP, HTTPS only except
+  localhost; `qa.endpoint` and `qa.model` required, no vendor defaults); missing key or
+  API errors skip QA with a warning; flags in `qa.*` CSV columns.
