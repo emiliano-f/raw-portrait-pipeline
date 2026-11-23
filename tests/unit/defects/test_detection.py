@@ -135,8 +135,29 @@ def test_staggered_adjacent_lines_keep_their_own_extents() -> None:
 
 
 @pytest.mark.parametrize("defect", [ColumnDefect(index=0, width=4), RowDefect(index=SIZE - 4, width=4)])
-def test_band_at_the_sensor_border_is_not_widened(defect: ColumnDefect | RowDefect) -> None:
-    assert _found(StatisticalDefectDetector(), [_dark(defects=(defect,))]) == {defect}
+def test_band_at_the_sensor_border_is_found_on_dark_frames(defect: ColumnDefect | RowDefect) -> None:
+    assert _found(StatisticalDefectDetector(dark_frames=True), [_dark(defects=(defect,))]) == {defect}
+
+
+@pytest.mark.parametrize("edge_at_x", [2, 3, 4, 5])
+@pytest.mark.parametrize(("level", "edge_level"), [(3000, 3600), (3600, 3000)])
+def test_batch_mode_ignores_stationary_scene_edges_at_the_border(edge_at_x: int, level: int, edge_level: int) -> None:
+    frames = [cfa_frame(SIZE, SIZE, level=level, seed=s, edge_at_x=edge_at_x, edge_level=edge_level) for s in range(5)]
+    assert StatisticalDefectDetector().detect(frames) == []
+
+
+def test_pixel_at_the_sensor_border_is_found_on_dark_frames_only() -> None:
+    frame = cfa_frame(SIZE, SIZE, level=4000)
+    data = frame.data.copy()
+    data[50, 0] = 0
+    frames = [frame.with_data(data)]
+    assert _found(StatisticalDefectDetector(dark_frames=True), frames) == {PixelDefect(x=0, y=50)}
+    assert _found(StatisticalDefectDetector(), frames) == set()
+
+
+def test_dark_frames_flag_is_read_by_from_config() -> None:
+    assert StatisticalDefectDetector.from_config(DefectDetectionConfig(), dark_frames=True).dark_frames
+    assert not StatisticalDefectDetector.from_config(DefectDetectionConfig()).dark_frames
 
 
 def test_stationary_scene_edge_is_not_a_defect() -> None:

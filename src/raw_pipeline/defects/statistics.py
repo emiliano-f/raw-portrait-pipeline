@@ -137,18 +137,22 @@ def _side_segment_z(
     return z
 
 
-def _line_z(data: NDArray[np.float32], segment_px: int, ignore: NDArray[np.bool_] | None) -> NDArray[np.float32]:
+def _line_z(
+    data: NDArray[np.float32], segment_px: int, ignore: NDArray[np.bool_] | None, *, one_sided_border: bool
+) -> NDArray[np.float32]:
     left, right = (_side_segment_z(data, side, segment_px, ignore) for side in LINE_SIDES)
     agree = np.sign(left) == np.sign(right)
     both = np.where(agree, np.sign(left) * np.minimum(np.abs(left), np.abs(right)), np.float32(0.0))
     width = data.shape[1]
     columns = np.arange(width)
-    near_border = (columns < LINE_REACH_PX) | (columns >= width - LINE_REACH_PX)
+    near_border = one_sided_border & ((columns < LINE_REACH_PX) | (columns >= width - LINE_REACH_PX))
     one = np.where(near_border, np.where(np.isnan(left), right, left), np.float32(0.0))
     return np.nan_to_num(np.where(np.isnan(left) | np.isnan(right), one, both)).astype(np.float32)
 
 
-def line_segment_z(data: NDArray[np.float32], segment_px: int, threshold_sigma: float) -> NDArray[np.float32]:
+def line_segment_z(
+    data: NDArray[np.float32], segment_px: int, threshold_sigma: float, *, one_sided_border: bool = False
+) -> NDArray[np.float32]:
     """Outlier score of every column, per segment of ``segment_px`` rows.
 
     Each column's residual against the median of its usable same-colour
@@ -159,8 +163,11 @@ def line_segment_z(data: NDArray[np.float32], segment_px: int, threshold_sigma: 
     side. A defect stands out from *both* sides, so the score is the smaller
     of the two z-scores when they agree in sign and 0 otherwise: a sharp
     scene edge, which differs from one side only, scores 0. A side without
-    usable neighbours counts as missing; within :data:`LINE_REACH_PX` of the
-    sensor border the other side is used alone, elsewhere the score is 0.
+    usable neighbours counts as missing and the score is then 0, except
+    within :data:`LINE_REACH_PX` of the sensor border when
+    ``one_sided_border`` is set (dark frames), where the other side is used
+    alone. On scene frames that is off: a stationary scene edge parallel to
+    and near the border would look exactly like a border band.
 
     Segments scoring above ``threshold_sigma`` are then excluded as
     neighbours and the scores recomputed, until no new segment is flagged
@@ -174,12 +181,14 @@ def line_segment_z(data: NDArray[np.float32], segment_px: int, threshold_sigma: 
         ``(ceil(H / segment_px), W)`` robust z-scores.
     """
     height = data.shape[0]
-    best = _line_z(data, segment_px, None)
+    best = _line_z(data, segment_px, None, one_sided_border=one_sided_border)
     flagged = np.abs(best) > threshold_sigma
     for _ in range(MAX_LINE_PASSES - 1):
         if not flagged.any():
             break
-        z = _line_z(data, segment_px, np.repeat(flagged, segment_px, axis=0)[:height])
+        z = _line_z(
+            data, segment_px, np.repeat(flagged, segment_px, axis=0)[:height], one_sided_border=one_sided_border
+        )
         best = np.where(np.abs(z) > np.abs(best), z, best)
         grown = np.abs(best) > threshold_sigma
         if np.array_equal(grown, flagged):
@@ -208,7 +217,9 @@ def _ring_count(mask: NDArray[np.bool_]) -> NDArray[np.uint8]:
     return count
 
 
-def pixel_z(data: NDArray[np.float32], ignore: NDArray[np.bool_] | None = None) -> NDArray[np.float32]:
+def pixel_z(
+    data: NDArray[np.float32], ignore: NDArray[np.bool_] | None = None, *, score_border: bool = True
+) -> NDArray[np.float32]:
     """Outlier score of every photosite against its 8 same-colour neighbours, per CFA colour plane.
 
     Args:
@@ -218,12 +229,19 @@ def pixel_z(data: NDArray[np.float32], ignore: NDArray[np.bool_] | None = None) 
             A photosite with more than :data:`MAX_IGNORED_RING_FRACTION` of
             its in-frame neighbours ignored scores 0: its remaining neighbours all lie on
             one side, where a scene edge could pass for a defect.
+        score_border: Score photosites within :data:`CFA_TILE_SIZE` of the
+            sensor border, whose neighbours lie mostly on the inner side.
+            Off for scene frames, where an edge near the border would pass for
+            a defect.
     """
     if ignore is not None and not ignore.any():
         ignore = None
     residual = same_colour_residual(data, RING_NEIGHBOURS, ignore)
     if ignore is not None:
         residual[_ring_count(ignore) > MAX_IGNORED_RING_FRACTION * _ring_in_frame(*ignore.shape)] = 0.0
+    if not score_border:
+        residual[:_T] = residual[-_T:] = 0.0
+        residual[:, :_T] = residual[:, -_T:] = 0.0
     z = np.empty_like(residual)
     for py in range(_T):
         for px in range(_T):
