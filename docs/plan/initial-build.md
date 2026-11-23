@@ -112,6 +112,9 @@ Owns `detection/`, `metering/`, `stages/meter.py`.
   "mediapipe_face_mesh_478"`). The pipeline must work offline, so the `.tflite`
   / `.task` models are vendored under `src/raw_pipeline/detection/models/`
   (Apache-2.0; document source URL, licence and size) and loaded from there.
+  MediaPipe has no Intel-macOS wheel, so it is not installed there
+  (environment marker in `pyproject.toml`): import it lazily and raise
+  `DetectionError` with a clear message so the meter stage uses the OpenCV fallback.
 - `detection/opencv_detector.py` (`opencv`): Haar/YuNet fallback with models
   shipped by `opencv-python-headless` (no download).
 - `metering/face_weighted.py` (`face_weighted`), `metering/center_weighted.py`
