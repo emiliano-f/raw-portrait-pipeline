@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1  # opencv-contrib-python needs libGL
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libegl1 libgles2  # OpenCV needs libGL; MediaPipe needs libEGL/libGLESv2
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true

@@ -10,4 +10,4 @@ uv run raw-pipeline process input/ output/ --config config.yaml
 uv run raw-pipeline detect-defects input/ --config config.yaml [--dark-frame path.CR2] [--output defects.yaml]
 ```
 
-On Linux, OpenCV needs `libGL.so.1` (Debian/Ubuntu: `sudo apt-get install libgl1`).
+On Linux, OpenCV needs `libGL.so.1` and MediaPipe needs `libEGL.so.1` (Debian/Ubuntu: `sudo apt-get install libgl1 libegl1 libgles2`). Without the EGL libraries, face detection falls back to OpenCV.
