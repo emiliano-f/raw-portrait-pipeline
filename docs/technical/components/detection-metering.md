@@ -112,11 +112,13 @@ Target: `meter.target_center_luminance`.
 ### OpenCV (`opencv`)
 
 - `cv2.CascadeClassifier` with `haarcascade_frontalface_default.xml` from
-  `cv2.data.haarcascades` (shipped inside `opencv-python-headless`, nothing is
+  `cv2.data.haarcascades` (shipped inside `opencv-contrib-python`, nothing is
   downloaded).
 - Grey + histogram equalisation, `scaleFactor=1.1`, `minNeighbors=6`, minimum face
   size 6 % of the preview short edge. Haar gives no score, so `confidence = 1.0`.
 - Frontal faces only: profiles and strongly rotated heads are not found.
+- OpenCV 5 headless wheels have no `CascadeClassifier`; on such a build the
+  detector raises `DetectionError` instead of failing with `AttributeError`.
 
 ## Vendored models (offline)
 

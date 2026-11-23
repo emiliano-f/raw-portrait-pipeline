@@ -4,6 +4,7 @@ import os
 import pickle
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 
@@ -34,6 +35,12 @@ def test_registered_and_picklable(tmp_path: Path) -> None:
 def test_bad_cascade_raises(tmp_path: Path) -> None:
     with pytest.raises(DetectionError):
         OpenCVDetector(cascade_path=tmp_path / "missing.xml").detect(np.zeros((32, 32, 3), np.uint8))
+
+
+def test_missing_cascade_classifier_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delattr(cv2, "CascadeClassifier")
+    with pytest.raises(DetectionError, match="CascadeClassifier"):
+        OpenCVDetector().detect(np.zeros((32, 32, 3), np.uint8))
 
 
 def _face_samples() -> list[Path]:

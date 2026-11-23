@@ -1,7 +1,8 @@
 """OpenCV Haar-cascade face detector, the offline fallback when MediaPipe is unavailable.
 
-The cascade ships with ``opencv-python-headless`` (``cv2.data.haarcascades``),
-so no model is downloaded.
+The cascade ships with ``opencv-contrib-python`` (``cv2.data.haarcascades``),
+so no model is downloaded. OpenCV 5 headless wheels lack ``CascadeClassifier``;
+without it the detector raises :class:`DetectionError`.
 """
 
 from __future__ import annotations
@@ -30,8 +31,9 @@ HAAR_CONFIDENCE: Final = 1.0
 
 
 def default_cascade_path() -> Path:
-    """Frontal-face cascade shipped with OpenCV."""
-    return Path(str(cv2.data.haarcascades)) / HAAR_CASCADE_FILE  # type: ignore[attr-defined]  # missing from cv2 stubs
+    """Frontal-face cascade shipped with OpenCV (empty directory when the build has no ``cv2.data``)."""
+    data = getattr(cv2, "data", None)
+    return Path(str(getattr(data, "haarcascades", ""))) / HAAR_CASCADE_FILE
 
 
 @face_detector_registry.register("opencv")
@@ -60,9 +62,14 @@ class OpenCVDetector:
         """Detect frontal faces on an sRGB uint8 ``(h, w, 3)`` preview, in preview pixels.
 
         Raises:
-            DetectionError: The cascade file cannot be loaded.
+            DetectionError: This OpenCV build has no ``CascadeClassifier`` or the cascade
+                file cannot be loaded.
         """
-        classifier = cv2.CascadeClassifier(str(self.cascade_path))
+        cascade_classifier = getattr(cv2, "CascadeClassifier", None)
+        if cascade_classifier is None:
+            msg = f"OpenCV {cv2.__version__} has no CascadeClassifier; install opencv-contrib-python"
+            raise DetectionError(msg)
+        classifier = cascade_classifier(str(self.cascade_path))
         if classifier.empty():
             msg = f"cannot load Haar cascade {self.cascade_path}"
             raise DetectionError(msg)
