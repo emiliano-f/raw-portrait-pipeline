@@ -95,8 +95,11 @@ Target: `meter.target_center_luminance`.
 - Uses the MediaPipe **Tasks** API (`mediapipe.tasks.vision.FaceDetector` and
   `FaceLandmarker`, IMAGE running mode). MediaPipe ≥ 1.x has no
   `mediapipe.solutions`.
-- MediaPipe is imported lazily on the first `detect` call; if the import fails the
-  detector raises `DetectionError` and the stage falls back to OpenCV.
+- MediaPipe is imported lazily on the first `detect` call. If the import fails, or
+  its native Tasks library cannot load (on Linux it needs system libraries such as
+  `libEGL.so.1` / `libGLESv2.so.2`, missing on minimal hosts and CI runners), the
+  detector raises `DetectionError` and the stage falls back to OpenCV. The MediaPipe
+  contract tests skip on such hosts.
 - `FaceDetector` gives the boxes and scores (`min_detection_confidence` =
   `meter.min_face_confidence`). `FaceLandmarker` runs only when a face was found;
   each mesh is attached to the largest box that contains the mesh centroid, with
