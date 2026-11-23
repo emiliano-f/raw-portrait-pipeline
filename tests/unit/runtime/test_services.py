@@ -68,7 +68,12 @@ def _signature_checked(real: Callable[..., object]) -> Callable[..., object]:
     signature = inspect.signature(real)
 
     def call(*args: object, **kwargs: object) -> object:
-        signature.bind(*args, **kwargs)
+        bound = signature.bind(*args, **kwargs).arguments
+        for name, value in bound.items():
+            if name.endswith(("path", "_dir")):
+                assert isinstance(value, Path), f"{name} got {value!r}"
+            if name.endswith("defect_map"):
+                assert isinstance(value, DefectMap), f"{name} got {value!r}"
         return None
 
     return call
