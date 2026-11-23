@@ -43,6 +43,11 @@ Safeguards:
 - `qa.endpoint` must be `https://`; plain `http://` is accepted only for
   `localhost` / `127.0.0.1` / `::1` (self-hosted models). Anything else is a
   `ConfigError` when the pipeline is built;
+- HTTP redirects are refused (an error, so QA is skipped): following one would
+  resend the bearer token to a host, or a plain-HTTP URL, that was never
+  validated;
+- an API key with whitespace, control or non-ASCII characters is treated as
+  missing, so it can never end up in an HTTP header error message;
 - responses larger than 1 MiB are rejected.
 
 ## Failure handling
@@ -53,8 +58,8 @@ the reason in `qa.notes`:
 | Situation | Logged |
 |---|---|
 | `qa.provider: none` | nothing (debug) |
-| API key variable unset or empty | one warning when the provider is built |
-| network error, timeout, HTTP error status | warning per image |
+| API key variable unset, empty or with invalid characters | one warning when the provider is built |
+| network error, timeout, HTTP error status, redirect | warning per image |
 | answer is not the expected JSON | warning per image |
 | provider plugin raises | warning per image (the stage catches it) |
 

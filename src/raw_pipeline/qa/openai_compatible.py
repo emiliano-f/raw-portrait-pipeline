@@ -46,6 +46,11 @@ def validate_endpoint(endpoint: str) -> str:
     return endpoint.rstrip("/")
 
 
+def is_valid_api_key(api_key: str) -> bool:
+    """Return ``True`` if ``api_key`` is printable ASCII without spaces (safe in an HTTP header)."""
+    return api_key.isascii() and api_key.isprintable() and " " not in api_key
+
+
 @qa_registry.register("openai_compatible")
 class OpenAICompatibleProvider:
     """Sends one downscaled JPEG preview to a chat-completions endpoint and parses flags.
@@ -77,14 +82,21 @@ class OpenAICompatibleProvider:
         timeout_s: float = 30.0,
         transport: HttpTransport | None = None,
     ) -> None:
-        self._api_key = api_key or None
         self.api_key_env = api_key_env
         self.endpoint = validate_endpoint(endpoint)
         self.model = model
         self.timeout_s = timeout_s
         self._transport: HttpTransport = transport or UrllibTransport()
-        if self._api_key is None:
-            logger.warning("QA enabled but $%s is not set: QA will be skipped for every image", api_key_env)
+        self._api_key: str | None = None
+        self._key_problem: str | None = None
+        if not api_key:
+            self._key_problem = f"no API key in ${api_key_env}"
+        elif not is_valid_api_key(api_key):
+            self._key_problem = f"${api_key_env} contains whitespace or control characters"
+        else:
+            self._api_key = api_key
+        if self._key_problem is not None:
+            logger.warning("QA enabled but %s: QA will be skipped for every image", self._key_problem)
 
     @classmethod
     def from_env(cls, env: BuildEnv) -> OpenAICompatibleProvider:
@@ -108,7 +120,7 @@ class OpenAICompatibleProvider:
     def review(self, preview_jpeg: bytes) -> QAResult:
         """Send ``preview_jpeg`` for review; see the class docstring for failure handling."""
         if self._api_key is None:
-            return self._skipped(f"no API key in ${self.api_key_env}", warn=False)
+            return self._skipped(self._key_problem or "no API key", warn=False)
         try:
             info = inspect_preview(preview_jpeg)
         except ValueError as exc:

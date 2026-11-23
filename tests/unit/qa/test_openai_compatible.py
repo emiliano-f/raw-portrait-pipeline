@@ -81,7 +81,7 @@ def test_no_key_skips_without_request(tiny_jpeg: bytes, caplog: pytest.LogCaptur
     transport = RecordingTransport(OK_BODY)
     with caplog.at_level(logging.WARNING):
         provider = _provider(transport, api_key="", api_key_env="MY_KEY")
-    assert "$MY_KEY is not set" in caplog.text
+    assert "no API key in $MY_KEY" in caplog.text
     result = provider.review(tiny_jpeg)
     assert result.skipped
     assert "MY_KEY" in result.notes
@@ -166,3 +166,16 @@ def test_from_env_defaults_without_key(monkeypatch: pytest.MonkeyPatch, tiny_jpe
     provider = OpenAICompatibleProvider.from_env(BuildEnv(config=cfg, output_dir=Path("out")))
     assert provider.model == DEFAULT_MODEL
     assert provider.review(tiny_jpeg).skipped
+
+
+@pytest.mark.parametrize("bad_key", ["sk-abc\nInjected: 1", "sk abc", "sk-\u00e9t\u00e9", "sk-\x00"])
+def test_invalid_key_skips_without_leaking(tiny_jpeg: bytes, bad_key: str, caplog: pytest.LogCaptureFixture) -> None:
+    transport = RecordingTransport(OK_BODY)
+    with caplog.at_level(logging.DEBUG):
+        provider = _provider(transport, api_key=bad_key)
+        result = provider.review(tiny_jpeg)
+    assert result.skipped
+    assert "control characters" in result.notes
+    assert transport.requests == []
+    assert bad_key not in caplog.text
+    assert bad_key not in result.notes

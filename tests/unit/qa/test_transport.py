@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import io
 import urllib.error
 import urllib.request
@@ -58,7 +59,8 @@ def test_posts_body_headers_and_timeout(monkeypatch: pytest.MonkeyPatch) -> None
         TimeoutError("timed out"),
         urllib.error.URLError("no route"),
         urllib.error.HTTPError(REQUEST.url, 401, "Unauthorized", Message(), None),
-        ValueError("unknown url type"),
+        ValueError("Invalid header value b'Bearer secret-123\\n'"),
+        http.client.IncompleteRead(b"partial"),
     ],
 )
 def test_errors_become_transport_errors(monkeypatch: pytest.MonkeyPatch, error: BaseException) -> None:

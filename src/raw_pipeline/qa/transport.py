@@ -84,10 +84,14 @@ class UrllibTransport:
         try:
             with open_url(req, request.timeout_s) as resp:
                 body: bytes = resp.read(MAX_RESPONSE_BYTES + 1)
-        except (OSError, ValueError) as exc:
+        except (OSError, http.client.HTTPException) as exc:
             # HTTPError/URLError/TimeoutError are OSErrors; their text never includes request headers.
             msg = f"{type(exc).__name__}: {exc}"
             raise TransportError(msg) from exc
+        except ValueError as exc:
+            # http.client puts the offending header value (possibly the API key) in the message: drop it.
+            msg = f"{type(exc).__name__} while building the request"
+            raise TransportError(msg) from None
         if len(body) > MAX_RESPONSE_BYTES:
             msg = f"response larger than {MAX_RESPONSE_BYTES} bytes"
             raise TransportError(msg)
