@@ -127,12 +127,14 @@ class SkinMaskBuilder:
         """Eyes, brows, lips, mouth and nostrils of ``face`` in the region (with safety margin)."""
         if has_face_mesh(face):
             assert face.landmarks is not None
-            points = face.landmarks - np.asarray(origin, dtype=np.float32)
-            protected = np.zeros(shape, dtype=np.uint8)
-            for region in PROTECTED_REGIONS:
-                protected |= _hull_mask(points[list(region)], shape)
             margin = max(1, round(PROTECT_MARGIN_FACE_FRACTION * face.box.width))
-            return _dilate(protected, margin) > 0
+            height, width = shape
+            padded = (height + 2 * margin, width + 2 * margin)
+            points = face.landmarks - np.asarray((origin[0] - margin, origin[1] - margin), dtype=np.float32)
+            protected = np.zeros(padded, dtype=np.uint8)
+            for region in PROTECTED_REGIONS:
+                protected |= _hull_mask(points[list(region)], padded)
+            return _dilate(protected, margin)[margin : margin + height, margin : margin + width] > 0
         box = face.box
         ox, oy = origin
         out = np.zeros(shape, dtype=np.bool_)

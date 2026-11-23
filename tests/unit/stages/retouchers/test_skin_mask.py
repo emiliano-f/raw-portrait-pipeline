@@ -63,3 +63,12 @@ def test_wrong_scheme_or_shape_falls_back() -> None:
     bad = face.landmarks.copy()  # type: ignore[union-attr]
     bad[0] = np.nan
     assert not has_face_mesh(replace(face, landmarks=bad))
+
+
+def test_other_face_margin_kept_when_feature_is_just_outside_region() -> None:
+    left, right = mesh_face(cx=100.0).face, mesh_face(cx=170.0).face
+    builder = SkinMaskBuilder(feather_px=0)
+    full = builder.build(left, (0, 0), (200, 400), [right]).hard
+    for width in range(100, 200):
+        crop = builder.build(left, (0, 0), (200, width), [right]).hard
+        np.testing.assert_array_equal(crop, full[:, :width])
