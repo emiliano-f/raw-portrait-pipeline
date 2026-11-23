@@ -1,1 +1,4 @@
-"""Metering package (see docs/plan/initial-build.md for ownership)."""
+"""Metering strategies (:class:`~raw_pipeline.core.protocols.MeteringStrategy`).
+
+Modules register themselves on import: ``face_weighted`` and ``center_weighted``.
+"""

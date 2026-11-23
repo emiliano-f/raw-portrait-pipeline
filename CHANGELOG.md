@@ -12,3 +12,6 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Configuration models, YAML loading and component-name validation; `config.example.yaml`.
 - Contract test suites for stages, defect correctors, exporters, face detectors,
   metering strategies and QA providers.
+- Detection and metering: `meter` stage with MediaPipe Tasks face detection + 478-point
+  mesh (vendored Apache-2.0 models, offline), OpenCV Haar fallback, `face_weighted` and
+  `center_weighted` metering with EV clamp.
