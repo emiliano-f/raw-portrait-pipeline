@@ -207,3 +207,13 @@ def test_detect_defects_fails_when_no_frame_is_readable(run: Run, tmp_path: Path
     folder = tmp_path / "bad"
     write_inputs(folder, {"A.CR2": b"BAD"})
     assert run("detect-defects", folder, "--config", config_path) == 2
+
+
+def test_detect_defects_output_must_be_yaml(
+    run: Run, input_dir: Path, config_path: Path, services: FakeServices
+) -> None:
+    raw = input_dir / "IMG_0001.CR2"
+    before = raw.read_bytes()
+    assert run("detect-defects", input_dir, "--config", config_path, "--output", raw, "--overwrite") == 2
+    assert services.written == []
+    assert raw.read_bytes() == before

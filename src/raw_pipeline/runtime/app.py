@@ -6,6 +6,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Final
 
 from raw_pipeline.config import load_config
 from raw_pipeline.core.errors import PipelineError
@@ -19,6 +20,9 @@ from raw_pipeline.runtime.factory import PipelineFactory
 from raw_pipeline.runtime.services import RuntimeServices
 
 logger = logging.getLogger(__name__)
+
+DEFECTS_FILE_SUFFIXES: Final = frozenset({".yaml", ".yml"})
+"""Allowed ``--output`` suffixes, so a RAW input can never be the destination."""
 
 
 class InputError(PipelineError):
@@ -155,6 +159,9 @@ def save_defect_map(
     """
     svc = services or RuntimeServices.builtin()
     if output is not None:
+        if output.suffix.lower() not in DEFECTS_FILE_SUFFIXES:
+            msg = f"--output must be a .yaml or .yml file, got {output}"
+            raise InputError(msg)
         return svc.write_defect_map(defects, output, overwrite=overwrite)
     if config_path is None:
         msg = "pass --output, or --config to update the config file"
