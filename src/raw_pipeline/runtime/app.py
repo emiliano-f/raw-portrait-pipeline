@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Final
 
 from raw_pipeline.config import load_config
-from raw_pipeline.core.errors import PipelineError
+from raw_pipeline.core.errors import ConfigError, PipelineError
 from raw_pipeline.core.protocols import PipelineObserver
 from raw_pipeline.core.raw import DefectMap
 from raw_pipeline.core.registry import BuildEnv
@@ -108,7 +108,7 @@ def detect_defects(
     """
     config = load_config(request.config_path)
     regs = load_components(registries)
-    regs.validate(config)
+    _check_decoder(config.decode.decoder, regs)
     svc = services or RuntimeServices.builtin()
     if request.dark_frame is not None:
         if not request.dark_frame.is_file():
@@ -186,3 +186,10 @@ def _check_dirs(input_dir: Path, output_dir: Path) -> None:
     if output_dir.exists() and not output_dir.is_dir():
         msg = f"output path {output_dir} exists and is not a folder"
         raise InputError(msg)
+
+
+def _check_decoder(name: str, registries: ComponentRegistries) -> None:
+    if name not in registries.raw_decoders:
+        known = ", ".join(registries.raw_decoders.names()) or "none"
+        msg = f"invalid configuration:\n  - decode.decoder: unknown raw_decoders {name!r}; registered: {known}"
+        raise ConfigError(msg)

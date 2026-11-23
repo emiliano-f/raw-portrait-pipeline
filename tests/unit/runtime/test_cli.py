@@ -10,7 +10,7 @@ import yaml
 from raw_pipeline import cli
 from raw_pipeline.config.models import AppConfig
 from raw_pipeline.runtime.components import ComponentRegistries
-from tests.unit.runtime.fakes import EmptyDetector, FakeServices, make_registries, write_inputs
+from tests.unit.runtime.fakes import EmptyDetector, FakeDecoder, FakeServices, make_registries, write_inputs
 
 
 class Run:
@@ -217,3 +217,13 @@ def test_detect_defects_output_must_be_yaml(
     assert run("detect-defects", input_dir, "--config", config_path, "--output", raw, "--overwrite") == 2
     assert services.written == []
     assert raw.read_bytes() == before
+
+
+def test_detect_defects_only_needs_the_decoder(input_dir: Path, config_path: Path, services: FakeServices) -> None:
+    regs = ComponentRegistries.empty()
+    regs.raw_decoders.register(FakeDecoder.name)(FakeDecoder)
+    run = Run(regs, services)
+    assert run("detect-defects", input_dir, "--config", config_path, "--yes") == 0
+    assert len(services.merged) == 1
+    assert run("detect-defects", input_dir, "--yes") == 2
+    assert "decode.decoder" in run.err.getvalue()
