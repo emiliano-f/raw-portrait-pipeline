@@ -14,3 +14,6 @@ All notable changes to this project are documented here. Format: [Keep a Changel
   metering strategies and QA providers.
 - Decode and IO: rawpy/LibRaw decoder with in-memory raw-level defect correction, EXIF
   reader, RAW discovery, output path planning, defect-map YAML, and the `decode` stage.
+- Raw-level defect correction (`defects`): `none`, `neighbor_average` and `directional`
+  correctors on the CFA mosaic, and `StatisticalDefectDetector` for hot/stuck columns,
+  rows and pixels from dark frames or a batch.
