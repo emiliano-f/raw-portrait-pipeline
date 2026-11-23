@@ -189,3 +189,10 @@ def test_yaml_merge_keys_are_supported(tmp_path: Path) -> None:
     cfg = load_config(path)
     assert cfg.meter.target_face_luminance == 0.2
     assert cfg.meter.strategy == "center_weighted"
+
+
+def test_unhashable_yaml_key_is_config_error(tmp_path: Path) -> None:
+    path = tmp_path / "listkey.yaml"
+    path.write_text("? [a, b]\n: 1\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match="not valid YAML"):
+        load_config(path)

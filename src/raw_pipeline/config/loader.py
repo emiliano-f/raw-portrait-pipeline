@@ -26,7 +26,12 @@ def _construct_unique_mapping(loader: yaml.SafeLoader, node: yaml.MappingNode) -
         if key_node.tag == _MERGE_TAG:
             continue
         key = loader.construct_object(key_node)
-        if key in seen:
+        try:
+            duplicate = key in seen
+        except TypeError:
+            msg = f"unhashable key {key!r}"
+            raise yaml.constructor.ConstructorError(None, None, msg, key_node.start_mark) from None
+        if duplicate:
             msg = f"duplicate key {key!r}"
             raise yaml.constructor.ConstructorError(None, None, msg, key_node.start_mark)
         seen.add(key)
