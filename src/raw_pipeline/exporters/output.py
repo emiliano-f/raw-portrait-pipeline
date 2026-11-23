@@ -61,7 +61,7 @@ def _open_temporary(path: Path) -> Path:
     # Same directory (atomic replace), unique per writer, created with the umask's default mode.
     temporary = path.with_name(f".{path.name}.{os.getpid()}-{threading.get_ident()}.partial")
     try:
-        temporary.open("wb").close()
+        temporary.open("xb").close()  # exclusive: never follows a planted symlink
     except OSError as exc:
         msg = f"cannot create {path}: {exc}"
         raise ExportError(msg) from exc

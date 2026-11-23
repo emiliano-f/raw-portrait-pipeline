@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import threading
 from pathlib import Path
 from typing import BinaryIO
 
@@ -63,3 +65,15 @@ def test_overwrite_replaces_with_default_permissions(tmp_path: Path) -> None:
     assert target.read_bytes() == b"data"
     assert target.stat().st_mode == fresh.stat().st_mode
     assert sorted(p.name for p in tmp_path.iterdir()) == ["a.bin", "fresh.bin"]
+
+
+def test_overwrite_never_follows_a_planted_temporary_symlink(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    victim = tmp_path / "victim.txt"
+    victim.write_bytes(b"keep")
+    path = tmp_path / "out.jpg"
+    monkeypatch.setattr(os, "getpid", lambda: 1)
+    monkeypatch.setattr(threading, "get_ident", lambda: 2)
+    (tmp_path / ".out.jpg.1-2.partial").symlink_to(victim)
+    with pytest.raises(ExportError):
+        write_output(path, lambda handle: handle.write(b"new"), overwrite=True)
+    assert victim.read_bytes() == b"keep"
