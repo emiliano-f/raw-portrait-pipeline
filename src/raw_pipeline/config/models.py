@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class _Section(BaseModel):
@@ -197,6 +197,15 @@ class ReportConfig(_Section):
     contact_sheet_filename: str = Field(
         default="contact_sheet.jpg", description="Contact sheet file name inside the output directory."
     )
+
+    @field_validator("csv_filename", "contact_sheet_filename")
+    @classmethod
+    def _bare_file_name(cls, name: str) -> str:
+        """Report files must land directly in the output directory (never beside an input)."""
+        if not name or name in {".", ".."} or "/" in name or "\\" in name:
+            msg = f"must be a plain file name without folders, got {name!r}"
+            raise ValueError(msg)
+        return name
 
 
 class QAConfig(_Section):

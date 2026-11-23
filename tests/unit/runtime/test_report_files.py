@@ -3,9 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from raw_pipeline.config.models import AppConfig
-from raw_pipeline.runtime.report_files import report_filenames, report_name_collisions, stale_contact_sheet_pages
+from raw_pipeline.runtime.report_files import (
+    duplicate_output_stems,
+    report_filenames,
+    report_name_collisions,
+    stale_contact_sheet_pages,
+)
 
 
 def _config(**report: str) -> AppConfig:
@@ -55,3 +61,15 @@ def test_stale_contact_sheet_pages_lists_pages_this_run_did_not_write(tmp_path: 
         (tmp_path / name).write_bytes(b"x")
     written = [tmp_path / "contact_sheet.jpg", tmp_path / "contact_sheet-2.jpg"]
     assert stale_contact_sheet_pages(tmp_path, _config(), written) == [tmp_path / "contact_sheet-3.jpg"]
+
+
+def test_duplicate_output_stems_ignore_case() -> None:
+    sources = [Path("in/IMG_1.CR2"), Path("in/img_1.cr2"), Path("in/IMG_2.CR2")]
+    assert duplicate_output_stems(sources) == ["IMG_1.CR2 / img_1.cr2"]
+    assert duplicate_output_stems(sources[1:]) == []
+
+
+@pytest.mark.parametrize("name", ["../in/IMG_1.CR2", "sub/report.csv", "..", "", "a\\b.csv"])
+def test_report_file_names_must_be_plain(name: str) -> None:
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate({"report": {"csv_filename": name}})
