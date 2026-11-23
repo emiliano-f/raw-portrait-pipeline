@@ -19,13 +19,21 @@ LEADING_COLUMNS: Final = ("file", "status", "error_type", "error", "outputs")
 STATUS_OK: Final = "ok"
 STATUS_FAILED: Final = "failed"
 OUTPUT_SEPARATOR: Final = ";"
+FORMULA_PREFIXES: Final = ("=", "+", "-", "@", "\t", "\r")
+"""Text cells starting with these are prefixed with ``'`` so spreadsheets do not evaluate them."""
+
+
+def text_cell(text: str) -> str:
+    """Neutralise spreadsheet formulas in a free-text cell (file names, errors)."""
+    return f"'{text}" if text.startswith(FORMULA_PREFIXES) else text
 
 
 def format_value(value: Scalar) -> str:
     """Render a metadata value for a CSV cell.
 
     ``None`` is empty, booleans are ``true``/``false`` and floats use the
-    shortest representation that round-trips.
+    shortest representation that round-trips. Strings go through
+    :func:`text_cell`; numbers are never prefixed, so negative values stay numeric.
     """
     if value is None:
         return ""
@@ -33,16 +41,18 @@ def format_value(value: Scalar) -> str:
         return "true" if value else "false"
     if isinstance(value, float):
         return repr(float(value))
+    if isinstance(value, str):
+        return text_cell(value)
     return str(value)
 
 
 def _row(outcome: ImageOutcome) -> dict[str, str]:
     row = {
-        "file": outcome.source_path.name,
+        "file": text_cell(outcome.source_path.name),
         "status": STATUS_OK if outcome.ok else STATUS_FAILED,
-        "error_type": outcome.error_type or "",
-        "error": outcome.error or "",
-        "outputs": OUTPUT_SEPARATOR.join(path.name for path in outcome.outputs),
+        "error_type": text_cell(outcome.error_type or ""),
+        "error": text_cell(outcome.error or ""),
+        "outputs": text_cell(OUTPUT_SEPARATOR.join(path.name for path in outcome.outputs)),
     }
     row.update({key: format_value(value) for key, value in outcome.metadata.flatten().items()})
     return row

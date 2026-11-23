@@ -73,7 +73,27 @@ def test_built_from_config(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("value", "text"), [(None, ""), (True, "true"), (False, "false"), (3, "3"), (0.1, "0.1"), ("a,b", "a,b")]
+    ("value", "text"),
+    [
+        (None, ""),
+        (True, "true"),
+        (False, "false"),
+        (3, "3"),
+        (-1.5, "-1.5"),
+        (0.1, "0.1"),
+        ("a,b", "a,b"),
+        ("=1+1", "'=1+1"),
+        ("-x", "'-x"),
+    ],
 )
 def test_format_value(value, text) -> None:
     assert format_value(value) == text
+
+
+def test_formula_like_text_is_neutralised(tmp_path: Path) -> None:
+    reporter = CsvReporter("r.csv", overwrite=False)
+    reporter.add(failed_outcome("=HYPERLINK(1).CR2"))
+    reporter.add(ok_outcome("IMG_0001.CR2", ev=-1.25))
+    _, rows = _read(reporter.finalize(tmp_path)[0])
+    assert rows[0]["file"] == "'=HYPERLINK(1).CR2"
+    assert rows[1]["meter.correction_ev"] == "-1.25"
