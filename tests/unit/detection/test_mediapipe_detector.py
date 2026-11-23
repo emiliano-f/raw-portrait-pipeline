@@ -134,6 +134,7 @@ def test_real_backend_clips_landmarks_to_preview(monkeypatch: pytest.MonkeyPatch
             return _Result()
 
     monkeypatch.setattr(vision.FaceLandmarker, "create_from_options", lambda *_: _Task())
+    monkeypatch.setattr(MediaPipeTasksBackend, "_image", lambda *_: None)  # mp.Image needs the native library
     meshes = MediaPipeTasksBackend(default_model_dir(), 0.5, 1).detect_meshes(PREVIEW)
     np.testing.assert_allclose(meshes[0], [[0, 120], [160, 240], [80, 180]])
 
