@@ -4,6 +4,8 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-23
+
 ### Added
 
 - Core contracts: `ImageContext`, value objects, protocols for every extension point
@@ -40,3 +42,6 @@ All notable changes to this project are documented here. Format: [Keep a Changel
   samples (`tests/fixtures/` or `RAW_PIPELINE_SAMPLES`): output size and sRGB ICC,
   clipping, untouched inputs, overwrite refusal, byte-identical reruns, face target.
 - CI: lint, format, mypy, import contracts, tests with coverage and the strict docs build.
+
+[Unreleased]: https://github.com/emiliano-f/raw-portrait-pipeline/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/emiliano-f/raw-portrait-pipeline/releases/tag/v0.1.0
