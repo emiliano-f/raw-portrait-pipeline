@@ -108,6 +108,12 @@ Per frame:
    indistinguishable from a border defect. Border defects in batch mode must
    be mapped by hand or found with a dark frame.
 
+   *Threshold behaviour.* Near the detection threshold a wide band can be
+   found only in part. On a synthetic 256×256 dark frame (noise σ = 20 DN,
+   default `outlier_threshold_sigma` 8), a 6-photosite band 40 DN above the
+   background was not detected, 60 DN gave partial lines, and 100 DN or
+   more was found whole. Check the map of a faint band and widen it by
+   hand if needed.
 3. **Pixels.** The 8-neighbour residual, ignoring photosites flagged as lines
    in this frame, is scored per CFA colour plane in the same way. A
    photosite with more than a third of its in-frame neighbours on detected
