@@ -194,11 +194,21 @@ def line_segment_z(data: NDArray[np.float32], segment_px: int, threshold_sigma: 
     return best
 
 
-def _ring_count(mask: NDArray[np.bool_]) -> NDArray[np.int64]:
+def _ring_in_frame(height: int, width: int) -> NDArray[np.uint8]:
+    """Number of :data:`RING_NEIGHBOURS` of every photosite that are inside the frame."""
+
+    def lines_in(length: int) -> NDArray[np.uint8]:
+        index = np.arange(length)
+        return (1 + (index >= _T) + (index < length - _T)).astype(np.uint8)
+
+    return (lines_in(height)[:, None] * lines_in(width)[None, :] - 1).astype(np.uint8)
+
+
+def _ring_count(mask: NDArray[np.bool_]) -> NDArray[np.uint8]:
     """Number of :data:`RING_NEIGHBOURS` of every photosite that are inside the frame and set in ``mask``."""
     height, width = mask.shape
     padded = np.pad(mask, _T, constant_values=False)
-    count = np.zeros(mask.shape, dtype=np.int64)
+    count = np.zeros(mask.shape, dtype=np.uint8)
     for dy, dx in RING_NEIGHBOURS:
         count += padded[_T + dy : _T + height + dy, _T + dx : _T + width + dx]
     return count
@@ -215,11 +225,11 @@ def pixel_z(data: NDArray[np.float32], ignore: NDArray[np.bool_] | None = None) 
             its in-frame neighbours ignored scores 0: its remaining neighbours all lie on
             one side, where a scene edge could pass for a defect.
     """
+    if ignore is not None and not ignore.any():
+        ignore = None
     residual = same_colour_residual(data, RING_NEIGHBOURS, ignore)
     if ignore is not None:
-        ignored = _ring_count(ignore)
-        in_frame = _ring_count(np.ones_like(ignore))
-        residual[ignored > MAX_IGNORED_RING_FRACTION * in_frame] = 0.0
+        residual[_ring_count(ignore) > MAX_IGNORED_RING_FRACTION * _ring_in_frame(*ignore.shape)] = 0.0
     z = np.empty_like(residual)
     for py in range(_T):
         for px in range(_T):
