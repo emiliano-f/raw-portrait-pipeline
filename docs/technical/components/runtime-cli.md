@@ -14,7 +14,7 @@ raw-pipeline detect-defects input/ --config config.yaml [--dark-frame dark.CR2] 
 | Exit code | Meaning |
 | --- | --- |
 | 0 | Every image and every report succeeded. |
-| 1 | At least one image or reporter failed (the others were still processed). |
+| 1 | At least one image, reporter or (for `detect-defects`) RAW frame failed; the others were still processed. |
 | 2 | Bad arguments, invalid config, unknown component name, missing/empty input folder, output folder equal to the input folder. Nothing was processed. |
 
 `process` prints one progress line per image to stderr (`[2/40] IMG_0002.CR2: ok`)
@@ -24,7 +24,7 @@ and a final `N ok, M failed` line; `-q` hides it. Logging goes to stderr
 `detect-defects` analyses the batch (or only `--dark-frame`), prints each finding
 in raw sensor coordinates using the `defects.map` YAML form, then:
 
-- with `--output`: writes a standalone defects file (refused if it exists, unless `--overwrite`);
+- with `--output`: writes a standalone `.yaml`/`.yml` defects file (refused if it exists, unless `--overwrite`);
 - otherwise: asks `[y/N]` before replacing `defects.map` in the `--config` file
   (`--yes` skips the question; no answer or end of input means no).
 

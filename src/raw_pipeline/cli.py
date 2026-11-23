@@ -120,7 +120,7 @@ def _detect(
     out.write(f"analysed {len(result.frames_used)} frame(s), {len(result.frames_failed)} unreadable\n")
     if not result.detected:
         out.write("no defects found; nothing written\n")
-        return EXIT_OK
+        return _detect_exit(result.frames_failed)
     out.write(f"found {len(result.detected)} defect(s) (raw sensor coordinates):\n")
     for found in result.detected:
         out.write(f"  {_describe(found)}\n")
@@ -142,7 +142,11 @@ def _detect(
         services=services,
     )
     out.write(f"wrote defects.map to {written}\n" if written else "not written\n")
-    return EXIT_OK
+    return _detect_exit(result.frames_failed)
+
+
+def _detect_exit(unreadable: Sequence[Path]) -> int:
+    return EXIT_FAILED if unreadable else EXIT_OK
 
 
 def _describe(found: DetectedDefect) -> str:

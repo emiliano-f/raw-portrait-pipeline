@@ -227,3 +227,12 @@ def test_detect_defects_only_needs_the_decoder(input_dir: Path, config_path: Pat
     assert len(services.merged) == 1
     assert run("detect-defects", input_dir, "--yes") == 2
     assert "decode.decoder" in run.err.getvalue()
+
+
+def test_detect_defects_exits_one_when_some_frames_are_unreadable(
+    run: Run, input_dir: Path, config_path: Path, services: FakeServices
+) -> None:
+    write_inputs(input_dir, {"IMG_0004.CR2": b"BAD"})
+    assert run("detect-defects", input_dir, "--config", config_path, "--yes") == 1
+    assert "analysed 3 frame(s), 1 unreadable" in run.out.getvalue()
+    assert len(services.merged) == 1
