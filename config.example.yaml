@@ -1,0 +1,72 @@
+# raw-portrait-pipeline configuration example.
+# Every option is optional; omitted options take the documented defaults.
+# Full reference: docs/functional/configuration.md
+
+pipeline:
+  stages: [decode, meter, tone, retouch, export, report, qa]   # order matters
+  workers: null              # parallel processes; null = CPU count - 1
+
+decode:
+  decoder: rawpy             # LibRaw via rawpy
+  demosaic: ahd              # ahd | aahd | dcb | dht | linear | vng | ppg
+  highlight_mode: blend      # clip | ignore | blend | reconstruct
+  before_preview_long_edge_px: 1024
+
+defects:                     # raw-level correction, BEFORE demosaicing
+  method: directional        # none | neighbor_average | directional
+  map:                       # raw sensor coordinates (visible area, before rotation)
+    - {type: column, index: 2841, width: 1}
+    - {type: row, index: 1203, start: 0, end: 3000, width: 1}
+    - {type: pixel, x: 512, y: 980}
+  detection:                 # used by `raw-pipeline detect-defects`
+    outlier_threshold_sigma: 8.0
+    min_frame_fraction: 0.8
+    max_pixel_defects: 500
+
+meter:
+  strategy: face_weighted
+  detector: mediapipe
+  fallback_detector: opencv
+  fallback_strategy: center_weighted   # used when no face is found
+  target_face_luminance: 0.18          # scene-linear
+  target_center_luminance: 0.18
+  max_correction_ev: 2.0               # EV stops
+  detection_long_edge_px: 1024
+  min_face_confidence: 0.6
+  center_weight_sigma_fraction: 0.25
+
+tone:
+  highlight_rolloff_start_ev: -1.0     # EV relative to diffuse white (1.0)
+  highlight_rolloff_ev: 1.5
+  shadow_lift_ev: 0.3
+  shadow_pivot_luminance: 0.05
+
+retouch:
+  method: frequency_separation         # none | frequency_separation
+  strength: 0.25                       # 0..1, low by default
+  blur_radius_face_fraction: 0.015
+  mask_feather_px: 8
+
+export:
+  formats: [jpeg]                      # jpeg | tiff (16-bit)
+  jpeg_quality: 92
+  long_edge_px: null                   # null = full resolution
+  color_space: srgb                    # ICC profile embedded
+  keep_gps: false
+  filename_suffix: ""
+
+report:
+  reporters: [csv, contact_sheet]
+  thumbnail_long_edge_px: 512
+  defect_crop_px: 192
+  csv_filename: report.csv
+  contact_sheet_filename: contact_sheet.jpg
+
+qa:                                    # optional; sends downscaled JPEG previews only
+  provider: none                       # none | openai_compatible
+  model: null
+  endpoint: null
+  api_key_env: QA_API_KEY              # no key = QA skipped with a warning
+  preview_long_edge_px: 1024           # at most 1024
+  preview_jpeg_quality: 85
+  timeout_s: 30.0

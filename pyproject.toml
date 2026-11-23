@@ -1,0 +1,114 @@
+[project]
+name = "raw-pipeline"
+version = "0.1.0"
+description = "Batch pipeline that turns Canon CR2 portraits into finished JPG/TIFF images."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "mediapipe>=1.2.3; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "numpy>=2.5.5",
+    "opencv-contrib-python>=5.1.0.95",
+    "pillow>=13.0.0",
+    "pydantic>=2.14.4",
+    "pyyaml>=6.0.4",
+    "rawpy>=0.28.0",
+    "tifffile>=2026.11.16",
+]
+
+[project.optional-dependencies]
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.8.2",
+    "mkdocstrings[python]>=1.0.8",
+]
+
+[project.scripts]
+raw-pipeline = "raw_pipeline.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.13.9,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "import-linter>=2.17",
+    "mypy>=2.4.1",
+    "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.6",
+    "types-pyyaml>=6.0.12.20261122",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "PT", "RET", "ARG", "PL", "NPY", "RUF", "D", "ANN", "TC", "PTH", "LOG", "G"]
+ignore = [
+    "D105",    # magic methods are self-explanatory
+    "UP046",   # explicit Generic[T] reads better in the documented contracts
+    "D107",    # __init__ args are documented on the class
+    "PLR0913", # constructors take injected collaborators explicitly
+    "TC001", "TC002", "TC003",  # runtime-evaluated annotations are needed by pydantic/dataclasses
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D", "ANN", "PLR2004", "S101"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+files = ["src"]
+
+[[tool.mypy.overrides]]
+module = ["rawpy.*", "mediapipe.*", "cv2.*", "tifffile.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+markers = ["slow: needs the sample CR2 fixtures; full pipeline runs"]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["raw_pipeline"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.importlinter]
+root_package = "raw_pipeline"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Layers: cli -> runtime -> stages -> strategies/adapters -> config -> core"
+type = "layers"
+layers = [
+    "raw_pipeline.cli",
+    "raw_pipeline.runtime",
+    "raw_pipeline.stages",
+    "raw_pipeline.metering | raw_pipeline.detection | raw_pipeline.exporters | raw_pipeline.qa | raw_pipeline.defects | raw_pipeline.io",
+    "raw_pipeline.config",
+    "raw_pipeline.core",
+]
+containers = []
+exhaustive = false
+
+[[tool.importlinter.contracts]]
+name = "core has no third-party imaging, IO or LLM dependencies"
+type = "forbidden"
+source_modules = ["raw_pipeline.core"]
+forbidden_modules = ["rawpy", "cv2", "mediapipe", "PIL", "tifffile", "pydantic", "yaml", "urllib", "http", "socket"]

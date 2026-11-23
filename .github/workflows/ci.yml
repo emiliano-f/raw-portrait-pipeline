@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libegl1 libgles2  # OpenCV needs libGL; MediaPipe needs libEGL/libGLESv2
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked --extra docs
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy src
+      - run: uv run lint-imports
+      - run: uv run pytest -m "not slow" --cov --cov-report=term
+      - run: uv run mkdocs build --strict  # fails on broken links and on drift in the generated docs sections
+        env:
+          NO_MKDOCS_2_WARNING: "1"
