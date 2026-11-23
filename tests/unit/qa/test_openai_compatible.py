@@ -196,3 +196,15 @@ def test_invalid_key_skips_without_leaking(tiny_jpeg: bytes, bad_key: str, caplo
     assert transport.requests == []
     assert bad_key not in caplog.text
     assert bad_key not in result.notes
+
+
+def test_echoed_api_key_is_redacted_from_notes_flags_and_failures(caplog: pytest.LogCaptureFixture) -> None:
+    preview = encode_preview(flat_image(0.18, 200, 300), 1024, 85)
+    echo = chat_response(json.dumps({"flags": [f"blur {SECRET}"], "notes": f"your key is {SECRET}"}))
+    result = _provider(RecordingTransport(echo)).review(preview)
+    assert SECRET not in result.notes
+    assert all(SECRET not in flag for flag in result.flags)
+    with caplog.at_level(logging.WARNING):
+        failed = _provider(FailingTransport(f"HTTPError: 401 bad key {SECRET}")).review(preview)
+    assert SECRET not in failed.notes
+    assert SECRET not in caplog.text

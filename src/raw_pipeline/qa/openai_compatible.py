@@ -130,7 +130,16 @@ class OpenAICompatibleProvider:
             verdict = parse_verdict(message_content(body))
         except (TransportError, ResponseFormatError) as exc:
             return self._skipped(f"request failed: {exc}")
-        return QAResult(provider=self.name, flags=verdict.flags, notes=verdict.notes, model=self.model)
+        return QAResult(
+            provider=self.name,
+            flags=frozenset(self._redact(flag) for flag in verdict.flags),
+            notes=self._redact(verdict.notes),
+            model=self.model,
+        )
+
+    def _redact(self, text: str) -> str:
+        """Remove the API key from server-controlled text (a service may echo it)."""
+        return text.replace(self._api_key, "[redacted]") if self._api_key else text
 
     def _request(self, preview_jpeg: bytes) -> HttpRequest:
         image_url = "data:image/jpeg;base64," + base64.b64encode(preview_jpeg).decode("ascii")
@@ -157,6 +166,7 @@ class OpenAICompatibleProvider:
         )
 
     def _skipped(self, reason: str, *, warn: bool = True) -> QAResult:
+        reason = self._redact(reason)
         if warn:
             logger.warning("QA skipped: %s", reason)
         return QAResult(provider=self.name, skipped=True, notes=reason, model=self.model)

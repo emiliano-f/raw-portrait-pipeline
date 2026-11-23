@@ -103,3 +103,24 @@ def test_opener_uses_refuse_redirects(monkeypatch: pytest.MonkeyPatch) -> None:
     req = urllib.request.Request(REQUEST.url)
     assert transport_module.open_url(req, 1.0) == "response"
     assert any(isinstance(h, RefuseRedirects) for h in handlers)
+
+
+@pytest.mark.parametrize(("url", "bypass"), [("http://localhost:8080/v1", True), ("https://vision.example/v1", False)])
+def test_plain_http_bypasses_proxies(monkeypatch: pytest.MonkeyPatch, url: str, bypass: bool) -> None:
+    built: list[tuple[Any, ...]] = []
+
+    class _Opener:
+        def open(self, req: Any, timeout: float) -> Any:
+            del req, timeout
+            raise urllib.error.URLError("stop")
+
+    def build_opener(*handlers: Any) -> _Opener:
+        built.append(handlers)
+        return _Opener()
+
+    monkeypatch.setattr(urllib.request, "build_opener", build_opener)
+    with pytest.raises(urllib.error.URLError):
+        transport_module.open_url(urllib.request.Request(url, data=b"x", method="POST"), 1.0)
+    proxies = [h for h in built[0] if isinstance(h, urllib.request.ProxyHandler)]
+    assert bool(proxies) is bypass
+    assert all(h.proxies == {} for h in proxies)
