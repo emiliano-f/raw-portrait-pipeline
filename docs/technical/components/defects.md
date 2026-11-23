@@ -94,8 +94,8 @@ After all frames, a candidate is kept if it was flagged in at least
 `ceil(min_frame_fraction · frames)` frames. Lines need at least
 `MIN_LINE_SEGMENTS` (2) consecutive kept segments; a run that does not span the
 sensor becomes a partial line with `start`/`end` (multiples of 64, so up to 63
-good photosites at each end may be included). Adjacent lines with overlapping
-extents are merged into one defect with `width > 1`. Pixels inside detected
+good photosites at each end may be included). Adjacent lines with the same
+extent are merged into one defect with `width > 1`. Pixels inside detected
 lines are dropped and at most `max_pixel_defects` pixels are reported,
 strongest first (a warning is logged when the cap is hit).
 

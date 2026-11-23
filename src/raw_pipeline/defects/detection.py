@@ -48,11 +48,10 @@ class _Band:
     frames_flagged: int
 
     def accepts(self, run: _Run) -> bool:
-        return run.line == self.index + self.width and run.start < self.end and self.start < run.end
+        return run.line == self.index + self.width and (run.start, run.end) == (self.start, self.end)
 
     def extend(self, run: _Run) -> None:
         self.width += 1
-        self.start, self.end = min(self.start, run.start), max(self.end, run.end)
         self.score = max(self.score, run.score)
         self.frames_flagged = max(self.frames_flagged, run.frames_flagged)
 
@@ -158,8 +157,8 @@ class StatisticalDefectDetector:
       the same procedure on the transposed frame. At least
       :data:`MIN_LINE_SEGMENTS` consecutive outlier segments make a line;
       runs that do not span the whole sensor become partial lines
-      (``start``/``end``, segment granularity), and adjacent lines with
-      overlapping extents are merged into one entry with ``width > 1``.
+      (``start``/``end``, segment granularity), and adjacent lines with the
+      same extent are merged into one entry with ``width > 1``.
     * **Pixels**: each photosite's residual against its 8 same-colour
       neighbours is scored per colour plane. Pixels inside detected lines are
       dropped; at most ``max_pixel_defects`` (strongest first) are reported.
