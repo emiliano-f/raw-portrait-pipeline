@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 SEGMENT_LENGTH_PX: Final = 64
 """Length of the line segments scored independently; partial lines are located to this granularity."""
 
+FRACTION_TOLERANCE: Final = 1e-9
+"""Slack on ``min_frame_fraction * frames`` so float rounding cannot raise the required count (0.56 * 25)."""
+
 MIN_LINE_SEGMENTS: Final = 2
 """Consecutive outlier segments needed to report a line rather than isolated pixels."""
 
@@ -221,7 +224,7 @@ class StatisticalDefectDetector:
         if shape is None:
             return []
         height, width = shape
-        required = max(1, math.ceil(self.min_frame_fraction * total))
+        required = max(1, math.ceil(self.min_frame_fraction * total - FRACTION_TOLERANCE))
         lines = [
             *(self._column(b, height, total) for b in columns.bands(required, height)),
             *(self._row(b, width, total) for b in rows.bands(required, width)),
