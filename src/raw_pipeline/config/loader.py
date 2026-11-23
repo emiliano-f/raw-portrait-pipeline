@@ -12,6 +12,9 @@ from pydantic import ValidationError
 from raw_pipeline.config.models import AppConfig
 from raw_pipeline.core.errors import ConfigError
 
+_MERGE_TAG = "tag:yaml.org,2002:merge"
+_MERGE_KEY = object()
+
 
 class _UniqueKeyLoader(yaml.SafeLoader):
     """Safe loader that rejects duplicate or non-scalar mapping keys.
@@ -22,11 +25,11 @@ class _UniqueKeyLoader(yaml.SafeLoader):
     """
 
     def construct_document(self, node: yaml.Node) -> object:
-        _check_mapping_keys(node)
+        _check_mapping_keys(self, node)
         return super().construct_document(node)
 
 
-def _check_mapping_keys(root: yaml.Node) -> None:
+def _check_mapping_keys(loader: yaml.SafeLoader, root: yaml.Node) -> None:
     pending: list[yaml.Node] = [root]
     visited: set[int] = set()
     while pending:
@@ -35,12 +38,12 @@ def _check_mapping_keys(root: yaml.Node) -> None:
             continue
         visited.add(id(node))
         if isinstance(node, yaml.MappingNode):
-            seen: set[tuple[str, str]] = set()
+            seen: set[object] = set()
             for key_node, value_node in node.value:
                 if not isinstance(key_node, yaml.ScalarNode):
                     msg = "mapping keys must be plain scalars"
                     raise yaml.constructor.ConstructorError(None, None, msg, key_node.start_mark)
-                key = (key_node.tag, key_node.value)
+                key = _MERGE_KEY if key_node.tag == _MERGE_TAG else loader.construct_object(key_node)
                 if key in seen:
                     msg = f"duplicate key {key_node.value!r}"
                     raise yaml.constructor.ConstructorError(None, None, msg, key_node.start_mark)
