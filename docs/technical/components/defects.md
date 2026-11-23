@@ -73,7 +73,9 @@ one at a time (memory is a few full-frame float32 arrays regardless of the
 number of frames) and returns `DetectedDefect`s: columns, then rows, then
 pixels in row-major order. It is built from `defects.detection`
 (`outlier_threshold_sigma`, `min_frame_fraction`, `max_pixel_defects`) with
-`from_env(env)` or `from_config(config)`.
+`from_env(env)` or `from_config(config, dark_frames=...)`. `dark_frames=True`
+(the input is dark frames, so there is no scene) enables one-sided scoring at
+the sensor border; the default is batch mode.
 
 Per frame:
 
@@ -90,15 +92,28 @@ Per frame:
    tripod batch differs from one side only and is not flagged. Segments
    with `|z| > outlier_threshold_sigma` are flagged, excluded as neighbours,
    and the frame is rescored until nothing new is flagged (at most 8
-   passes); each pass uncovers the next column of a wide band or of a band
-   at the sensor border. Each side's reference is the median of its 3
+   passes); each pass uncovers the next column of a wide band. Each side's reference is the median of its 3
    nearest same-colour neighbours, skipping those already flagged (they are
    not replaced by photosites further out, which could lie beyond a narrow
-   scene stripe). Bands up to 6 photosites wide are detected, up to 4 at
-   the sensor border: a wider band there looks exactly like a scene edge
-   parallel to the border. Wider bands go unnoticed (every column then has a
-   defective majority on one side) and must be written into the map by
-   hand.
+   scene stripe). Bands up to 6 photosites wide are detected; wider bands
+   go unnoticed (every column then has a defective majority on one side)
+   and must be written into the map by hand.
+
+   *Sensor border.* Columns within 6 photosites of the border lack
+   neighbours on one side. With `dark_frames=True` they are scored on the
+   inner side alone, which finds border bands up to 4 photosites wide (a
+   wider one looks exactly like an edge parallel to the border). In batch
+   mode a missing side scores 0, and pixels in the outer 2 photosites are
+   not scored: a stationary scene edge near the border would otherwise be
+   indistinguishable from a border defect. Border defects in batch mode must
+   be mapped by hand or found with a dark frame.
+
+   *Threshold behaviour.* Near the detection threshold a wide band can be
+   found only in part. On a synthetic 256×256 dark frame (noise σ = 20 DN,
+   default `outlier_threshold_sigma` 8), a 6-photosite band 40 DN above the
+   background was not detected, 60 DN gave partial lines, and 100 DN or
+   more was found whole. Check the map of a faint band and widen it by
+   hand if needed.
 3. **Pixels.** The 8-neighbour residual, ignoring photosites flagged as lines
    in this frame, is scored per CFA colour plane in the same way. A
    photosite with more than a third of its in-frame neighbours on detected

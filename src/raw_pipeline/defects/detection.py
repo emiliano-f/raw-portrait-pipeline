@@ -59,15 +59,16 @@ class _Band:
 class _LineAccumulator:
     """Per-segment outlier counts of columns (pass transposed data for rows)."""
 
-    def __init__(self, threshold_sigma: float, segment_px: int) -> None:
+    def __init__(self, threshold_sigma: float, segment_px: int, *, one_sided_border: bool) -> None:
         self._threshold = threshold_sigma
         self._segment_px = segment_px
+        self._one_sided_border = one_sided_border
         self._hits: NDArray[np.int64] | None = None
         self._score_sum: NDArray[np.float64] | None = None
 
     def add(self, data: NDArray[np.float32]) -> NDArray[np.bool_]:
         """Score one frame; return its ``(H, W)`` mask of photosites on outlier segments."""
-        z = np.abs(line_segment_z(data, self._segment_px, self._threshold))
+        z = np.abs(line_segment_z(data, self._segment_px, self._threshold, one_sided_border=self._one_sided_border))
         flagged = z > self._threshold
         if self._hits is None or self._score_sum is None:
             self._hits = np.zeros(z.shape, dtype=np.int64)
@@ -117,13 +118,14 @@ class _LineAccumulator:
 class _PixelAccumulator:
     """Per-photosite outlier counts."""
 
-    def __init__(self, threshold_sigma: float) -> None:
+    def __init__(self, threshold_sigma: float, *, score_border: bool) -> None:
         self._threshold = threshold_sigma
+        self._score_border = score_border
         self._hits: NDArray[np.uint32] | None = None
         self._score_sum: NDArray[np.float32] | None = None
 
     def add(self, data: NDArray[np.float32], lines: NDArray[np.bool_]) -> None:
-        z = np.abs(pixel_z(data, lines))
+        z = np.abs(pixel_z(data, lines, score_border=self._score_border))
         flagged = z > self._threshold
         if self._hits is None or self._score_sum is None:
             self._hits = np.zeros(z.shape, dtype=np.uint32)
@@ -170,11 +172,20 @@ class StatisticalDefectDetector:
     the frame fraction. Frames are consumed one at a time; memory is a few
     full-frame arrays regardless of the number of frames.
 
+    Columns and rows within 6 photosites of the sensor border are scored
+    against their inner neighbours alone, and pixels in the outer 2
+    photosites are scored at all, only with ``dark_frames=True``. On a batch
+    of photos a stationary scene edge parallel to and near the border looks
+    exactly like a border defect, so in batch mode border defects are not
+    detected; map them by hand or detect from a dark frame.
+
     Args:
         outlier_threshold_sigma: Minimum ``|z|`` (robust standard deviations) per frame.
         min_frame_fraction: Fraction of frames in which a candidate must be an outlier, in ``(0, 1]``.
         max_pixel_defects: Maximum number of pixel defects reported.
         segment_px: Segment length in photosites for line scoring.
+        dark_frames: The frames are dark frames (no scene), which enables
+            one-sided scoring at the sensor border.
     """
 
     def __init__(
@@ -183,16 +194,24 @@ class StatisticalDefectDetector:
         min_frame_fraction: float = 0.8,
         max_pixel_defects: int = 500,
         segment_px: int = SEGMENT_LENGTH_PX,
+        *,
+        dark_frames: bool = False,
     ) -> None:
         self.outlier_threshold_sigma = outlier_threshold_sigma
         self.min_frame_fraction = min_frame_fraction
         self.max_pixel_defects = max_pixel_defects
         self.segment_px = segment_px
+        self.dark_frames = dark_frames
 
     @classmethod
-    def from_config(cls, config: DefectDetectionConfig) -> Self:
+    def from_config(cls, config: DefectDetectionConfig, *, dark_frames: bool = False) -> Self:
         """Build from the ``defects.detection`` config section."""
-        return cls(config.outlier_threshold_sigma, config.min_frame_fraction, config.max_pixel_defects)
+        return cls(
+            config.outlier_threshold_sigma,
+            config.min_frame_fraction,
+            config.max_pixel_defects,
+            dark_frames=dark_frames,
+        )
 
     @classmethod
     def from_env(cls, env: BuildEnv) -> Self:
@@ -205,9 +224,9 @@ class StatisticalDefectDetector:
         Raises:
             ValueError: If the frames do not all have the same shape.
         """
-        columns = _LineAccumulator(self.outlier_threshold_sigma, self.segment_px)
-        rows = _LineAccumulator(self.outlier_threshold_sigma, self.segment_px)
-        pixels = _PixelAccumulator(self.outlier_threshold_sigma)
+        columns = _LineAccumulator(self.outlier_threshold_sigma, self.segment_px, one_sided_border=self.dark_frames)
+        rows = _LineAccumulator(self.outlier_threshold_sigma, self.segment_px, one_sided_border=self.dark_frames)
+        pixels = _PixelAccumulator(self.outlier_threshold_sigma, score_border=self.dark_frames)
         shape: tuple[int, ...] | None = None
         total = 0
         for frame in frames:
