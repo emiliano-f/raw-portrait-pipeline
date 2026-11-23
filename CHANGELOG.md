@@ -12,3 +12,6 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Configuration models, YAML loading and component-name validation; `config.example.yaml`.
 - Contract test suites for stages, defect correctors, exporters, face detectors,
   metering strategies and QA providers.
+- Raw-level defect correction (`defects`): `none`, `neighbor_average` and `directional`
+  correctors on the CFA mosaic, and `StatisticalDefectDetector` for hot/stuck columns,
+  rows and pixels from dark frames or a batch.
