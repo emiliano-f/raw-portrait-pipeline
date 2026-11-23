@@ -1,0 +1,24 @@
+site_name: raw-portrait-pipeline
+repo_url: https://github.com/emiliano-f/raw-portrait-pipeline
+theme:
+  name: material
+  features: [navigation.sections, content.code.copy]
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: false
