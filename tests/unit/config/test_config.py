@@ -169,3 +169,9 @@ def test_duplicate_yaml_keys_are_rejected(tmp_path: Path) -> None:
     path.write_text("meter:\n  target_face_luminance: 0.2\nmeter:\n  strategy: center_weighted\n", encoding="utf-8")
     with pytest.raises(ConfigError, match="duplicate key 'meter'"):
         load_config(path)
+
+
+@pytest.mark.parametrize("entry", [{"end": 0}, {"start": 5, "end": 5}, {"start": 6, "end": 2}])
+def test_empty_defect_ranges_are_rejected(entry: dict[str, int]) -> None:
+    with pytest.raises(ConfigError, match="end must be greater than start"):
+        parse_config({"defects": {"map": [{"type": "row", "index": 3, **entry}]}})

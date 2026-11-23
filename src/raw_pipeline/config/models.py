@@ -74,8 +74,8 @@ class DefectEntry(_Section):
         elif self.index is None:
             msg = f"{self.type} defects need index"
             raise ValueError(msg)
-        if self.start is not None and self.end is not None and self.end <= self.start:
-            msg = "end must be greater than start"
+        if self.end is not None and self.end <= (self.start or 0):
+            msg = "end must be greater than start (start defaults to 0)"
             raise ValueError(msg)
         return self
 
