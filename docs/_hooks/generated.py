@@ -9,7 +9,7 @@ Markers replaced in page Markdown:
 - ``<!-- generated:import-contracts -->``: the import-linter contracts in ``pyproject.toml``.
 
 The build fails if a config field has no description or if a page holding the
-components table does not mention every registered component name.
+components table does not mention every built-in component name.
 """
 
 from __future__ import annotations

@@ -119,7 +119,7 @@ See [QA and privacy](qa-and-privacy.md).
 ## All registered components
 
 Generated from the component registries at docs build time (built-in components
-only; plugins document themselves); the build fails
-if a component is registered but not described on this page.
+only; entry-point plugins document themselves). The build fails if a built-in
+component is not described on this page.
 
 <!-- generated:components -->
