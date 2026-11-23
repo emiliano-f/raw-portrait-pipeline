@@ -60,7 +60,8 @@ flowchart LR
    failed `ImageOutcome` (error message and class name, metadata recorded up to the
    failing stage). The batch continues.
 7. Reporters receive outcomes and are finalized in the main process. A reporter
-   failure is recorded in `BatchResult.reporter_errors` and makes the exit code 1.
+   failure (in `add` or `finalize`) is recorded in `BatchResult.reporter_errors`,
+   disables that reporter for the rest of the batch and makes the exit code 1.
 
 ## Main types
 
