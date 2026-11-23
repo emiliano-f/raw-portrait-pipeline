@@ -12,3 +12,5 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Configuration models, YAML loading and component-name validation; `config.example.yaml`.
 - Contract test suites for stages, defect correctors, exporters, face detectors,
   metering strategies and QA providers.
+- Decode and IO: rawpy/LibRaw decoder with in-memory raw-level defect correction, EXIF
+  reader, RAW discovery, output path planning, defect-map YAML, and the `decode` stage.

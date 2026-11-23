@@ -1,1 +1,1 @@
-"""Io package (see docs/plan/initial-build.md for ownership)."""
+"""Filesystem and RAW-file adapters: rawpy decoder, EXIF, input discovery, output naming, defect YAML."""
