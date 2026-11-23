@@ -57,4 +57,5 @@ def test_built_from_config_and_warns_about_gps(tmp_path: Path, caplog: pytest.Lo
         exporter = exporter_registry.create("tiff", build_env(tmp_path, export={"keep_gps": True, "long_edge_px": 640}))
     assert isinstance(exporter, TiffExporter)
     assert exporter.long_edge_px == 640
-    assert "GPS" in caplog.text
+    assert "JPEG outputs only" in caplog.text
+    assert "TIFF outputs never contain GPS" in caplog.text

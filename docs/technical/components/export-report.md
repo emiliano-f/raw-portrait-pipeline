@@ -57,9 +57,11 @@ byte-identical. GPS tags (`ExifInfo.gps`) are copied into the JPEG GPS IFD only
 when `keep_gps` is true; tag names Pillow does not know are skipped with a debug
 log.
 
-**TIFF and GPS.** tifffile cannot write a GPS sub-IFD, so TIFF outputs never
-contain location data; with `keep_gps: true` the exporter logs a warning when it
-is built. Stripping is the safe default, so this never leaks location.
+**TIFF and GPS.** TIFF outputs never contain GPS tags, whatever `keep_gps`
+says, because tifffile cannot write a GPS sub-IFD. `keep_gps: true` therefore
+applies to JPEG outputs only; when it is set, the TIFF exporter logs a warning
+saying so when it is built. This is an accepted limitation: it errs on the side
+of stripping location data.
 
 ## `export` stage
 

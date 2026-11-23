@@ -62,7 +62,10 @@ class TiffExporter:
         """Build from the ``export`` config section and the run's overwrite flag."""
         cfg = app_config(env).export
         if cfg.keep_gps:
-            logger.warning("export.keep_gps is set but TIFF outputs never contain GPS tags")
+            logger.warning(
+                "export.keep_gps is set: GPS is kept in JPEG outputs only; TIFF outputs never contain "
+                "GPS tags (tifffile cannot write a GPS sub-IFD)"
+            )
         return cls(long_edge_px=cfg.long_edge_px, overwrite=env.overwrite)
 
     def export(self, ctx: ImageContext, destination: Path) -> Path:
