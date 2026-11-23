@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -60,3 +62,50 @@ def test_builtin_adapts_the_io_and_defects_signatures(monkeypatch: pytest.Monkey
 def test_resolve_reports_missing_modules() -> None:
     with pytest.raises(ComponentUnavailableError, match=r"raw_pipeline\.not_a_module"):
         resolve("raw_pipeline.not_a_module", "anything")
+
+
+def _signature_checked(real: Callable[..., object]) -> Callable[..., object]:
+    signature = inspect.signature(real)
+
+    def call(*args: object, **kwargs: object) -> object:
+        signature.bind(*args, **kwargs)
+        return None
+
+    return call
+
+
+@pytest.mark.parametrize(
+    ("module", "attribute", "use"),
+    [
+        ("raw_pipeline.io.discovery", "discover_raw_files", lambda s, p: s.discover(p, exclude_dirs=[p / "out"])),
+        (
+            "raw_pipeline.io.defects_yaml",
+            "write_defect_map",
+            lambda s, p: s.write_defect_map(DefectMap(), p / "d.yaml", overwrite=True),
+        ),
+        (
+            "raw_pipeline.io.defects_yaml",
+            "merge_defect_map_into_config",
+            lambda s, p: s.merge_defect_map(DefectMap(), p / "c.yaml"),
+        ),
+        (
+            "raw_pipeline.defects.detection",
+            "StatisticalDefectDetector",
+            lambda s, _: s.make_defect_detector(DefectDetectionConfig()),
+        ),
+    ],
+)
+def test_builtin_calls_match_the_real_signatures(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    module: str,
+    attribute: str,
+    use: Callable[[RuntimeServices, Path], object],
+) -> None:
+    real = getattr(pytest.importorskip(module), attribute)
+    if isinstance(real, type):
+        fake: object = SimpleNamespace(from_config=_signature_checked(real.from_config))
+    else:
+        fake = _signature_checked(real)
+    monkeypatch.setattr(services_module, "resolve", lambda m, a: fake if (m, a) == (module, attribute) else None)
+    use(RuntimeServices.builtin(), tmp_path)
