@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
 from raw_pipeline.config import load_config
+from raw_pipeline.config.models import AppConfig
 from raw_pipeline.core.errors import ConfigError, PipelineError
 from raw_pipeline.core.protocols import PipelineObserver
 from raw_pipeline.core.raw import DefectMap
@@ -102,9 +103,18 @@ def process_batch(
     logger.info("stages: %s; workers: %d", ", ".join(pipeline.stage_names), workers)
     result = BatchRunner(pipeline, workers, observer).run(sources, reporters, request.output_dir)
     if request.overwrite:
-        for page in stale_contact_sheet_pages(request.output_dir, config, result.report_paths):
-            logger.warning("%s is a contact sheet page from an earlier run; this run did not replace it", page)
+        _warn_stale_pages(request.output_dir, config, result.report_paths)
     return result
+
+
+def _warn_stale_pages(output_dir: Path, config: AppConfig, written: Sequence[Path]) -> None:
+    try:
+        stale = stale_contact_sheet_pages(output_dir, config, written)
+    except OSError as exc:
+        logger.warning("could not check %s for stale contact sheet pages: %s", output_dir, exc)
+        return
+    for page in stale:
+        logger.warning("%s is a contact sheet page from an earlier run; this run did not replace it", page)
 
 
 def detect_defects(

@@ -9,6 +9,7 @@ import yaml
 
 from raw_pipeline import cli
 from raw_pipeline.config.models import AppConfig
+from raw_pipeline.runtime import app
 from raw_pipeline.runtime.components import ComponentRegistries
 from tests.unit.runtime.fakes import EmptyDetector, FakeDecoder, FakeServices, make_registries, write_inputs
 
@@ -272,3 +273,15 @@ def test_process_warns_about_stale_contact_sheet_pages(
     assert run("process", input_dir, out, "--config", config_path, "--overwrite") == 0
     assert "contact_sheet-2.jpg is a contact sheet page from an earlier run" in run.err.getvalue()
     assert (out / "contact_sheet-2.jpg").read_bytes() == b"old"
+
+
+def test_process_succeeds_when_stale_pages_cannot_be_listed(
+    run: Run, input_dir: Path, config_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def unlistable(*_: object) -> list[Path]:
+        raise PermissionError("listing denied")
+
+    monkeypatch.setattr(app, "stale_contact_sheet_pages", unlistable)
+    assert run("process", input_dir, tmp_path / "out", "--config", config_path, "--overwrite") == 0
+    assert "could not check" in run.err.getvalue()
+    assert "listing denied" in run.err.getvalue()
