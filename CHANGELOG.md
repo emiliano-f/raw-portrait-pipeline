@@ -12,3 +12,6 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Configuration models, YAML loading and component-name validation; `config.example.yaml`.
 - Contract test suites for stages, defect correctors, exporters, face detectors,
   metering strategies and QA providers.
+- Optional vision-LLM QA: `qa` stage (EXIF-free JPEG preview, long edge <= 1024 px),
+  `none` and `openai_compatible` providers (standard-library HTTP, HTTPS only except
+  localhost); missing key or API errors skip QA with a warning; flags in `qa.*` CSV columns.
