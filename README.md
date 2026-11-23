@@ -9,3 +9,5 @@ uv sync
 uv run raw-pipeline process input/ output/ --config config.yaml
 uv run raw-pipeline detect-defects input/ --config config.yaml [--dark-frame path.CR2] [--output defects.yaml]
 ```
+
+On Linux, OpenCV needs `libGL.so.1` (Debian/Ubuntu: `sudo apt-get install libgl1`).

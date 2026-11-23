@@ -116,7 +116,7 @@ Owns `detection/`, `metering/`, `stages/meter.py`.
   (environment marker in `pyproject.toml`): import it lazily and raise
   `DetectionError` with a clear message so the meter stage uses the OpenCV fallback.
 - `detection/opencv_detector.py` (`opencv`): Haar/YuNet fallback with models
-  shipped by `opencv-python-headless` (no download).
+  shipped by `opencv-contrib-python` (no download; the only OpenCV wheel, because mediapipe depends on it and two cv2 wheels overwrite each other; headless OpenCV 5 has no `CascadeClassifier`).
 - `metering/face_weighted.py` (`face_weighted`), `metering/center_weighted.py`
   (`center_weighted`): EV correction `log2(target / measured)` clamped to
   `±max_correction_ev`, robust (trimmed mean or median) luminance via
