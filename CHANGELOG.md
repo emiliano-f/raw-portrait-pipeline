@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-24
+
+### Added
+
+- `meter.face_highlight_ceiling` (default 0.8): face-weighted metering lowers the correction when the 90th-percentile skin luminance would exceed it, so the sunlit side of a split-lit face keeps its detail.
+
+### Changed
+
+- Defaults tuned on real EOS 800D portraits: `meter.max_correction_ev` 2.0 → 6.0 (backlit faces needed 4.5–5.5 EV and were left about 3 EV dark), `tone.highlight_rolloff_start_ev` -1.0 → -1.5 and `tone.highlight_rolloff_ev` 1.5 → 4.0 (bright windows and white shirts clip far less after the push).
+
 ## [0.1.0] - 2026-11-23
 
 ### Added
@@ -54,5 +64,6 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Inputs whose names differ only in case (`IMG_1.CR2`, `img_1.cr2`) are rejected before processing instead of one export replacing the other.
 - `export.keep_gps: true` no longer breaks JPEG export for RAW files with GPS coordinates.
 
-[Unreleased]: https://github.com/emiliano-f/raw-portrait-pipeline/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/emiliano-f/raw-portrait-pipeline/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/emiliano-f/raw-portrait-pipeline/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/emiliano-f/raw-portrait-pipeline/releases/tag/v0.1.0

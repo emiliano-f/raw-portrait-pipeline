@@ -64,9 +64,9 @@ EV = clamp(log2(t / max(m, 1e-6)), -E_max, +E_max)
 with target `t = meter.target_face_luminance` (or `target_center_luminance`)
 and `E_max = meter.max_correction_ev`. The `tone` stage applies `2**EV`, then
 a luminance curve that is the identity between the shadow pivot and the
-highlight shoulder start (with the defaults, `0.05 ≤ Y ≤ 2**-1 = 0.5`), so a
+highlight shoulder start (with the defaults, `0.05 ≤ Y ≤ 2**-1.5 ≈ 0.35`), so a
 face metered to 0.18 lands exactly on 0.18. Highlights up to
-`2**tone.highlight_rolloff_ev` (default 1.5 EV above white) are rolled into
+`2**tone.highlight_rolloff_ev` (default 4 EV above white) are rolled into
 1.0 instead of clipping; the curve multiplies RGB by `curve(Y)/Y`, so hue and
 saturation are kept. Formulas: [Tone stage](components/tone-retouch.md#tone-stage).
 

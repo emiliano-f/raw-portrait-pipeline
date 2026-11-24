@@ -30,14 +30,15 @@ meter:
   fallback_strategy: center_weighted   # used when no face is found
   target_face_luminance: 0.18          # scene-linear
   target_center_luminance: 0.18
-  max_correction_ev: 2.0               # EV stops
+  max_correction_ev: 6.0               # EV stops
+  face_highlight_ceiling: 0.8          # scene-linear; brightest skin limit
   detection_long_edge_px: 1024
   min_face_confidence: 0.6
   center_weight_sigma_fraction: 0.25
 
 tone:
-  highlight_rolloff_start_ev: -1.0     # EV relative to diffuse white (1.0)
-  highlight_rolloff_ev: 1.5
+  highlight_rolloff_start_ev: -1.5     # EV relative to diffuse white (1.0)
+  highlight_rolloff_ev: 4.0
   shadow_lift_ev: 0.3
   shadow_pivot_luminance: 0.05
 
