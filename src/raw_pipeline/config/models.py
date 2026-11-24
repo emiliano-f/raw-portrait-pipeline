@@ -127,7 +127,18 @@ class MeterConfig(_Section):
         default=0.18, gt=0, description="Target scene-linear luminance for center-weighted metering."
     )
     max_correction_ev: float = Field(
-        default=2.0, ge=0, description="Absolute limit of the exposure correction, in EV stops."
+        default=6.0,
+        ge=0,
+        description="Absolute limit of the exposure correction, in EV stops (backlit portraits often need 4-6 EV).",
+    )
+    face_highlight_ceiling: float = Field(
+        default=0.8,
+        gt=0,
+        description=(
+            "Scene-linear luminance the brightest skin (90th percentile of the face) may reach "
+            "after the correction; lowers the correction for split-lit faces so the sunlit side "
+            "keeps its detail."
+        ),
     )
     detection_long_edge_px: int = Field(
         default=1024, ge=128, description="Long edge in pixels of the preview used for face detection."
@@ -144,12 +155,12 @@ class ToneConfig(_Section):
     """Exposure correction, highlight recovery and shadow compression (scene-linear)."""
 
     highlight_rolloff_start_ev: float = Field(
-        default=-1.0,
+        default=-1.5,
         lt=0,
         description="Where the highlight shoulder starts, in EV relative to 1.0 (diffuse white); must be below 0.",
     )
     highlight_rolloff_ev: float = Field(
-        default=1.5, gt=0, description="Scene range above the shoulder compressed into the output range, in EV."
+        default=4.0, gt=0, description="Scene range above the shoulder compressed into the output range, in EV."
     )
     shadow_lift_ev: float = Field(
         default=0.3, ge=0, le=2.0, description="Maximum lift applied to deep shadows, in EV (0 to 2)."

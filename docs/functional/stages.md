@@ -55,7 +55,10 @@ faces reach `meter.target_face_luminance` (0.18, mid grey; `meter.target_center_
 | `face_weighted` | `meter.strategy` | Trimmed mean luminance of the central skin area of the faces. |
 | `center_weighted` | `meter.fallback_strategy` | Centre-weighted median of the whole frame, used when no face is found. |
 
-The correction is limited to `meter.max_correction_ev`. Records `meter.*`:
+The correction is limited to `meter.max_correction_ev`. With `face_weighted` it is
+also lowered when it would push the brightest skin (90th percentile of the face)
+above `meter.face_highlight_ceiling`, so the sunlit side of a half-shaded face
+does not blow out. Records `meter.*`:
 detector used, faces found/used, measured luminance, `correction_ev`,
 whether the fallback was used, and any detector error.
 
