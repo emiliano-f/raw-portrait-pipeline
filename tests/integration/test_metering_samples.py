@@ -52,6 +52,11 @@ def assert_lands_on_target(sample: Path, *, with_faces: bool, tmp_path: Path) ->
     strategy_name = config.meter.strategy if with_faces else config.meter.fallback_strategy
     assert exposure.method == strategy_name
     after = load_components().metering.create(strategy_name, env).measure(ctx)
+    full_ev = math.log2(exposure.target_luminance / exposure.measured_luminance)
+    if exposure.correction_ev < full_ev - TOLERANCE_EV:
+        # Lowered by meter.face_highlight_ceiling: the face stays below target, never above.
+        assert after.measured_luminance < exposure.target_luminance
+        return
     assert abs(math.log2(after.measured_luminance / exposure.target_luminance)) < TOLERANCE_EV
 
 

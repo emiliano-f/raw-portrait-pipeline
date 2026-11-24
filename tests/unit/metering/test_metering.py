@@ -153,3 +153,33 @@ def test_stats_helpers() -> None:
     with pytest.raises(MeteringError):
         subsampled_luminance(np.zeros((0, 0, 3), np.float32))
     assert subsampled_luminance(np.zeros((3000, 2000, 3), np.float32)).shape == (1000, 667)
+
+
+def _split_lit_face() -> tuple[ImageContext, FaceRegion]:
+    image, face = face_image(face_luminance=0.001, background=0.001)
+    region = skin_region(face.box)
+    lit = int(region.x0 + 0.75 * region.width)
+    image[int(region.y0) : int(region.y1) + 1, lit : int(region.x1) + 1] = 0.2
+    return decoded_context(image).with_artifact(FACES, (face,)), face
+
+
+def test_highlight_ceiling_limits_correction_for_split_lit_face() -> None:
+    ctx, _ = _split_lit_face()
+    unlimited = FaceWeightedMetering(0.18, 6.0).measure(ctx)
+    limited = FaceWeightedMetering(0.18, 6.0, highlight_ceiling=0.8).measure(ctx)
+    assert limited.measured_luminance == unlimited.measured_luminance
+    assert limited.correction_ev < unlimited.correction_ev
+    assert math.isclose(limited.correction_ev, math.log2(0.8 / 0.2), rel_tol=1e-4)
+
+
+def test_highlight_ceiling_does_not_affect_evenly_lit_face() -> None:
+    image, face = face_image(face_luminance=0.05, background=0.05)
+    ctx = decoded_context(image).with_artifact(FACES, (face,))
+    m = FaceWeightedMetering(0.18, 6.0, highlight_ceiling=0.8).measure(ctx)
+    assert math.isclose(m.correction_ev, math.log2(0.18 / 0.05), rel_tol=1e-4)
+
+
+def test_highlight_ceiling_never_exceeds_negative_limit() -> None:
+    image, face = face_image(face_luminance=50.0, background=50.0)
+    ctx = decoded_context(image).with_artifact(FACES, (face,))
+    assert FaceWeightedMetering(0.18, 2.0, highlight_ceiling=0.8).measure(ctx).correction_ev == -2.0
