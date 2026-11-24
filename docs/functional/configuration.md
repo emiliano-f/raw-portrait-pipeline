@@ -7,7 +7,7 @@ read, with a message naming the option. Unknown component names (a stage,
 detector, exporter, ... that is not registered) fail the same way and list the
 registered names.
 
-A commented starting point is [`config.example.yaml`](https://github.com/emiliano-f/raw-portrait-pipeline/blob/master/config.example.yaml)
+A commented starting point is [`config.example.yaml`](https://github.com/emiliano-f/raw-portrait-pipeline/blob/main/config.example.yaml)
 in the repository root.
 
 !!! note "Generated reference"

@@ -51,7 +51,7 @@ balance) and after, with the exposure correction and retouch strength.
 
 ## Next steps
 
-- Copy [`config.example.yaml`](https://github.com/emiliano-f/raw-portrait-pipeline/blob/master/config.example.yaml)
+- Copy [`config.example.yaml`](https://github.com/emiliano-f/raw-portrait-pipeline/blob/main/config.example.yaml)
   to `config.yaml`, adjust it and pass `--config config.yaml`. Every option is
   in the [configuration reference](configuration.md).
 - If your sensor has hot or stuck lines, find them with

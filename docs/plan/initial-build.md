@@ -1,7 +1,7 @@
 # Plan: initial build
 
 Coordinator: main Devin session. Workers: one child Devin session per package,
-branch `agent/<package>`, one PR per package into `master`.
+branch `agent/<package>`, one PR per package into `master` (now `main`).
 
 Workers build against the contracts merged in the "core" package and **must not
 edit `core/`, `config/` or another package's files**. Need a contract change?
