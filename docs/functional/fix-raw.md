@@ -174,13 +174,16 @@ is reported as failed. The checks run on the finished file before it is moved in
 1. It opens with LibRaw (rawpy).
 2. Every photosite outside the defect mask equals the base DNG.
 3. Every photosite inside it equals the corrector output.
-4. The defect detector (`defects.detection`) scores each configured defect in
-   the base frame and in the corrected one. A defect it still finds fails the
-   check if its score did not drop (the line is unchanged, or new). A defect
-   that is still found but weaker is accepted with a warning, and the report
-   says `passed_residual`: a thin scene stripe right next to the corrected
-   column (a cable, a hair) can keep a weak detector score after a correct
-   repair, so a fixed threshold would reject good DNGs.
+4. The defect detector (`defects.detection`) looks for each configured defect
+   in the corrected frame. For a defect it still finds, the check compares how
+   far the defect's photosites are from their nearest same-colour neighbours
+   (median difference, in DN) before and after correction. It fails if that
+   did not drop (the line is unchanged, worse, or new). A defect that is still
+   found but weaker is accepted with a warning, and the report says
+   `passed_residual`: a thin scene stripe right next to the corrected column
+   (a cable, a hair) can keep a weak detector score after a correct repair, so
+   a fixed threshold would reject good DNGs. The detector's own score is not
+   compared, because it scores a band of adjacent lines by its strongest one.
 5. The DNG still has its raw image where it was (same layout, same CFA).
 6. Inputs (CR2 and, for `existing_dng`, the DNG) have the same SHA-256 as before.
 

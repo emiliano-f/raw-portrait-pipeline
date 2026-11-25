@@ -52,6 +52,33 @@ def _score(frame: CFAFrame, defect: Defect, detector: StatisticalDefectDetector)
     return max(scores, default=0.0)
 
 
+def _deviation(frame: CFAFrame, defect: Defect) -> float:
+    """Median absolute difference (DN) of the defect's photosites from their nearest same-colour photosites
+    outside it, across the line (left/right for columns and pixels, above/below for rows)."""
+    height, width = frame.data.shape
+    own = DefectMap((defect,)).mask(height, width)
+    data = frame.data.astype(np.float64)
+    if isinstance(defect, RowDefect):
+        own, data = own.T, data.T
+    ys, xs = np.nonzero(own)
+    refs: list[np.ndarray] = []
+    for step in (-CFA_TILE_SIZE, CFA_TILE_SIZE):
+        ref = xs + step
+        while True:
+            inside = (ref >= 0) & (ref < own.shape[1])
+            blocked = inside.copy()
+            blocked[inside] = own[ys[inside], ref[inside]]
+            if not blocked.any():
+                break
+            ref = np.where(blocked, ref + step, ref)
+        refs.append(np.where(inside, data[ys, np.clip(ref, 0, own.shape[1] - 1)], np.nan))
+    reference = np.nanmean(np.stack(refs), axis=0)
+    usable = ~np.isnan(reference)
+    if not usable.any():
+        return 0.0
+    return float(np.median(np.abs(data[ys, xs][usable] - reference[usable])))
+
+
 def residual_defects(
     before: CFAFrame,
     after: CFAFrame,
@@ -69,19 +96,21 @@ def residual_defects(
     of the stripe's level from its same-colour neighbours (all its vertical
     neighbours are defective too) and can still score as a line, at up to
     about 0.9 of the uncorrected score. So the check is relative: a residual
-    is accepted (:attr:`DefectResidual.improved`) when its score is lower
-    than in the uncorrected frame; an unchanged or newly appeared line is not.
+    is accepted (:attr:`DefectResidual.improved`) when the defect's own
+    photosites deviate less from their same-colour neighbours than before
+    correction; an unchanged, worse or newly appeared line is not.
 
-    The "before" score puts only this defect's photosites back to their
-    uncorrected values (everything else as corrected), so a stronger adjacent
-    line that the detector merged into one band cannot lend it its score.
+    The deviation, not the detector score, is compared: the detector scores a
+    band of adjacent lines by its strongest member, so a scene stripe or
+    another defect merged into the band could supply both scores. The
+    "before" frame puts only this defect's photosites back to their
+    uncorrected values, so both deviations use the same neighbours.
     """
     residuals: list[DefectResidual] = []
     height, width = after.data.shape
     for defect in defects.defects:
-        after_score = _score(after, defect, detector)
-        if after_score > 0:
+        if _score(after, defect, detector) > 0:
             own = DefectMap((defect,)).mask(height, width)
             isolated = after.with_data(np.where(own, before.data, after.data))
-            residuals.append(DefectResidual(defect, _score(isolated, defect, detector), after_score))
+            residuals.append(DefectResidual(defect, _deviation(isolated, defect), _deviation(after, defect)))
     return residuals

@@ -199,8 +199,9 @@ class DefectResidual:
 
     Attributes:
         defect: The configured defect.
-        score_before: Its detector score in the uncorrected frame (0 when not detected).
-        score_after: Its detector score in the corrected frame.
+        score_before: Median absolute difference (DN) of its photosites from their nearest same-colour
+            neighbours outside it, in the uncorrected frame.
+        score_after: The same in the corrected frame.
     """
 
     defect: Defect
@@ -209,7 +210,7 @@ class DefectResidual:
 
     @property
     def improved(self) -> bool:
-        """Whether correction lowered the score (a weaker residual, not an unchanged or new line)."""
+        """Whether correction lowered the deviation (a weaker residual, not an unchanged, worse or new line)."""
         return self.score_after < self.score_before
 
 

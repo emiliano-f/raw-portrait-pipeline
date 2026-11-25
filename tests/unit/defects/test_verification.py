@@ -99,7 +99,7 @@ def test_line_introduced_by_correction_is_not_improved() -> None:
     clean = cfa_frame(SIZE, SIZE, level=LOW, seed=11)
     broken = inject_hot(clean, defects.mask(SIZE, SIZE))
     [residual] = residual_defects(clean, broken, defects, StatisticalDefectDetector())
-    assert residual.score_before == 0
+    assert residual.score_before < residual.score_after
     assert not residual.improved
 
 
@@ -115,3 +115,19 @@ def test_worse_line_is_not_hidden_by_a_stronger_corrected_neighbour() -> None:
     (residual,) = residual_defects(frames[0], frames[1], DefectMap((weak, strong)), StatisticalDefectDetector())
     assert residual.defect == weak
     assert not residual.improved
+
+
+@pytest.mark.parametrize("corrector", CORRECTORS, ids=lambda c: c.name)
+@pytest.mark.parametrize("vertical", [True, False], ids=["column", "row"])
+def test_repaired_line_merged_with_a_stronger_scene_stripe_passes(corrector: DefectCorrector, vertical: bool) -> None:
+    defects = DefectMap((_defect(vertical=vertical, width=1),))
+    clean = _stripe(vertical=vertical, at=LINE + 1, width=1)
+    data = clean.data.astype(np.int32)
+    if vertical:
+        data[:, LINE] += 1500
+    else:
+        data[LINE, :] += 1500  # a weak hot line, much weaker than the scene stripe beside it
+    hot = clean.with_data(np.clip(data, 0, 65535).astype(np.uint16))
+    fixed = corrector.correct(hot, defects).frame
+    residuals = residual_defects(hot, fixed, defects, StatisticalDefectDetector())
+    assert all(r.improved for r in residuals), residuals
