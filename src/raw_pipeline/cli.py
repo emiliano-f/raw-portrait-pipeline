@@ -15,9 +15,11 @@ from raw_pipeline.core.protocols import PipelineObserver
 from raw_pipeline.core.raw import DetectedDefect
 from raw_pipeline.runtime.app import (
     DetectDefectsRequest,
+    FixRawRequest,
     InputError,
     ProcessRequest,
     detect_defects,
+    fix_raw,
     process_batch,
     save_defect_map,
 )
@@ -59,6 +61,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--overwrite", action="store_true", help="Replace an existing --output file, or rewrite --config when merging."
     )
     detect.add_argument("--yes", action="store_true", help="Update the config file without asking.")
+
+    fix = commands.add_parser(
+        "fix-raw", parents=[common], help="Write defect-corrected DNGs to keep editing as RAW (see raw_export)."
+    )
+    fix.add_argument("input_dir", type=Path, help="Folder of .CR2 (or .DNG with source existing_dng); never modified.")
+    fix.add_argument("output_dir", type=Path, help="Folder for <name>.dng files and the fix-raw report.")
+    fix.add_argument("--overwrite", action="store_true", help="Replace existing output files.")
     return parser
 
 
@@ -82,6 +91,8 @@ def main(
     try:
         if args.command == "process":
             return _process(args, registries, services, err)
+        if args.command == "fix-raw":
+            return _fix_raw(args, registries, services, out)
         return _detect(args, registries, services, out, ask)
     except (ConfigError, InputError) as exc:
         err.write(f"error: {exc}\n")
@@ -107,6 +118,23 @@ def _process(
     result = process_batch(request, registries=registries, services=services, observer=CompositeObserver(observers))
     for path in result.report_paths:
         err.write(f"report: {path}\n")
+    return EXIT_OK if result.ok else EXIT_FAILED
+
+
+def _fix_raw(
+    args: argparse.Namespace, registries: ComponentRegistries | None, services: RuntimeServices | None, out: TextIO
+) -> int:
+    request = FixRawRequest(
+        input_dir=args.input_dir, output_dir=args.output_dir, config_path=args.config, overwrite=args.overwrite
+    )
+    result = fix_raw(request, registries=registries, services=services)
+    for record in result.records:
+        if record.ok:
+            note = " (passthrough: no defect corrected)" if record.passthrough else ""
+            out.write(f"ok      {record.output_file}: {record.corrected_pixels} photosites corrected{note}\n")
+        else:
+            out.write(f"FAILED  {record.input_file}: {record.error}\n")
+    out.write(f"report: {result.report_path}\n")
     return EXIT_OK if result.ok else EXIT_FAILED
 
 

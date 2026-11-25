@@ -51,5 +51,25 @@ class OutputExistsError(ExportError):
     """The output file already exists and overwriting was not requested."""
 
 
+class DngFormatError(ImageError):
+    """A DNG cannot be read or patched in place (compressed, linear, not 16-bit, ...)."""
+
+
+class ConverterError(ImageError):
+    """The RAW-to-DNG converter failed or timed out."""
+
+
+class ConverterNotFoundError(ConverterError):
+    """The converter executable is not installed or not at the configured path."""
+
+
+class CoordinateMappingError(ImageError):
+    """No exact, Bayer-phase-preserving offset maps the reference CFA into the DNG."""
+
+
+class VerificationError(ImageError):
+    """The written DNG failed a post-write check."""
+
+
 class QAError(PipelineError):
     """A QA provider failed. Always handled: QA never fails an image."""

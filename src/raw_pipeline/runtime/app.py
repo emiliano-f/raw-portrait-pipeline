@@ -1,4 +1,4 @@
-"""Use cases behind the CLI commands: ``process`` and ``detect-defects``."""
+"""Use cases behind the CLI commands: ``process``, ``detect-defects`` and ``fix-raw``."""
 
 from __future__ import annotations
 
@@ -9,7 +9,9 @@ from pathlib import Path
 from typing import Final
 
 from raw_pipeline.config import load_config
+from raw_pipeline.config.defects import to_defect_map
 from raw_pipeline.config.models import AppConfig
+from raw_pipeline.core.dng import PreviewMode
 from raw_pipeline.core.errors import ConfigError, PipelineError
 from raw_pipeline.core.protocols import PipelineObserver
 from raw_pipeline.core.raw import DefectMap
@@ -18,6 +20,7 @@ from raw_pipeline.runtime.batch import BatchResult, BatchRunner, default_workers
 from raw_pipeline.runtime.components import ComponentRegistries, load_components
 from raw_pipeline.runtime.defect_detection import DefectDetectionResult, DefectDetectionService
 from raw_pipeline.runtime.factory import PipelineFactory
+from raw_pipeline.runtime.raw_export import FixRawRecord, RawExportService
 from raw_pipeline.runtime.report_files import duplicate_output_stems, report_name_collisions, stale_contact_sheet_pages
 from raw_pipeline.runtime.services import RuntimeServices
 
@@ -67,6 +70,36 @@ class DetectDefectsRequest:
     dark_frame: Path | None = None
     output: Path | None = None
     overwrite: bool = False
+
+
+@dataclass(frozen=True)
+class FixRawRequest:
+    """Arguments of ``raw-pipeline fix-raw``.
+
+    Attributes:
+        input_dir: Folder of .CR2 files (or .DNG files with ``raw_export.source: existing_dng``); read-only.
+        output_dir: Folder for the corrected ``<name>.dng`` files and the CSV report.
+        config_path: YAML config; ``None`` uses the defaults.
+        overwrite: Allow replacing existing output files.
+    """
+
+    input_dir: Path
+    output_dir: Path
+    config_path: Path | None = None
+    overwrite: bool = False
+
+
+@dataclass(frozen=True)
+class FixRawResult:
+    """Outcome of ``fix-raw``: one record per input and the report written."""
+
+    records: tuple[FixRawRecord, ...]
+    report_path: Path
+
+    @property
+    def ok(self) -> bool:
+        """Whether every input produced a verified DNG."""
+        return all(record.ok for record in self.records)
 
 
 def process_batch(
@@ -195,6 +228,59 @@ def save_defect_map(
     if not confirm(f"Replace defects.map in {config_path} with {len(defects)} detected defect(s)?"):
         return None
     return svc.merge_defect_map(defects, config_path, overwrite=overwrite)
+
+
+def fix_raw(
+    request: FixRawRequest,
+    *,
+    registries: ComponentRegistries | None = None,
+    services: RuntimeServices | None = None,
+) -> FixRawResult:
+    """Write a defect-corrected DNG for every input (ADR 0003). Inputs are never modified.
+
+    Raises:
+        ConfigError: Invalid config or unknown component names (before any image).
+        InputError: Missing inputs, clashing output names, or an existing report without ``overwrite``.
+    """
+    config = load_config(request.config_path)
+    regs = load_components(registries)
+    regs.validate(config)
+    _check_dirs(request.input_dir, request.output_dir)
+    env = BuildEnv(config=config, output_dir=request.output_dir, overwrite=request.overwrite)
+    svc = services or RuntimeServices.builtin()
+    source = regs.dng_sources.create(config.raw_export.source, env)
+    report_path = request.output_dir / config.raw_export.report_filename
+    if report_path.exists() and not request.overwrite:
+        msg = f"{report_path} already exists; pass --overwrite to replace it"
+        raise InputError(msg)
+    inputs = svc.discover_files(request.input_dir, extensions=source.input_suffixes, exclude_dirs=(request.output_dir,))
+    if not inputs:
+        wanted = ", ".join(sorted(source.input_suffixes))
+        msg = f"no {wanted} files found in {request.input_dir} (raw_export.source: {source.name})"
+        raise InputError(msg)
+    duplicates = duplicate_output_stems(inputs)
+    if duplicates:
+        msg = "several inputs share an output name (rename them): " + "; ".join(duplicates)
+        raise InputError(msg)
+    factory = PipelineFactory(regs)
+    service = RawExportService(
+        factory.build_raw_decoder(env),
+        source,
+        svc.make_dng_writer(),
+        regs.defect_correctors.create(config.defects.method, env),
+        to_defect_map(config.defects.map),
+        placement=svc.placement,
+        remaining_defects=svc.remaining_defects,
+        detection=config.defects.detection,
+        preview=PreviewMode(config.raw_export.preview),
+        verify=config.raw_export.verify,
+    )
+    request.output_dir.mkdir(parents=True, exist_ok=True)
+    records = tuple(
+        service.export(path, request.output_dir / f"{path.stem}.dng", overwrite=request.overwrite) for path in inputs
+    )
+    report = svc.write_report([r.as_row() for r in records], report_path, overwrite=request.overwrite)
+    return FixRawResult(records, report)
 
 
 def _check_input_dir(input_dir: Path) -> None:

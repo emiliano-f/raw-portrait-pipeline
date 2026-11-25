@@ -12,6 +12,7 @@ from typing import Final
 from raw_pipeline.core.protocols import (
     BatchReporter,
     DefectCorrector,
+    DngSource,
     Exporter,
     FaceDetector,
     MeteringStrategy,
@@ -25,6 +26,7 @@ from raw_pipeline.core.registry import Registry
 stage_registry: Final = Registry[Stage]("stages")
 raw_decoder_registry: Final = Registry[RawDecoder]("raw_decoders")
 defect_corrector_registry: Final = Registry[DefectCorrector]("defect_correctors")
+dng_source_registry: Final = Registry[DngSource]("dng_sources")
 face_detector_registry: Final = Registry[FaceDetector]("detectors")
 metering_registry: Final = Registry[MeteringStrategy]("metering")
 retoucher_registry: Final = Registry[Retoucher]("retouchers")
@@ -36,6 +38,7 @@ ALL_REGISTRIES: Final = (
     stage_registry,
     raw_decoder_registry,
     defect_corrector_registry,
+    dng_source_registry,
     face_detector_registry,
     metering_registry,
     retoucher_registry,

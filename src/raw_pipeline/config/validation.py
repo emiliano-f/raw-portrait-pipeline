@@ -24,6 +24,7 @@ def component_references(config: AppConfig) -> list[tuple[str, str, str]]:
         *((f"export.formats[{i}]", "exporters", name) for i, name in enumerate(config.export.formats)),
         *((f"report.reporters[{i}]", "reporters", name) for i, name in enumerate(config.report.reporters)),
         ("qa.provider", "qa", config.qa.provider),
+        ("raw_export.source", "dng_sources", config.raw_export.source),
     ]
     if config.meter.fallback_detector is not None:
         refs.append(("meter.fallback_detector", "detectors", config.meter.fallback_detector))
