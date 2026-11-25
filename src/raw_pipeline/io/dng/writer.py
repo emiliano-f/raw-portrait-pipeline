@@ -25,6 +25,7 @@ from raw_pipeline.io.dng.tiff import (
     COMPRESSION_NONE,
     ENTRY_SIZE,
     GPS_INFO,
+    ORIGINAL_RAW_FILE_DATA,
     NEW_RAW_IMAGE_DIGEST,
     PLANAR_CONFIGURATION,
     RAW_IMAGE_DIGEST,
@@ -323,7 +324,18 @@ def _publish(tmp: Path, destination: Path, *, overwrite: bool) -> None:
 
 
 def _gps(editor: _Editor, fh: BinaryIO, layout: DngLayout, *, keep: bool) -> GpsHandling:
-    """Strip the GPS IFD and XMP GPS fields of IFD0 in place unless ``keep``; report what was there."""
+    """Strip the GPS IFD and XMP GPS fields of IFD0 in place unless ``keep``; report what was there.
+
+    Raises:
+        DngFormatError: GPS must be stripped but the DNG embeds its original raw file, whose own
+            metadata cannot be cleaned in place.
+    """
+    if not keep and ORIGINAL_RAW_FILE_DATA in layout.ifd0.entries:
+        msg = (
+            "the DNG embeds its original raw file (OriginalRawFileData), which may carry GPS that cannot be "
+            "stripped in place; convert without embedding the original, or set raw_export.keep_gps: true"
+        )
+        raise DngFormatError(msg)
     entry = editor.entry_offset(layout.ifd0, GPS_INFO)
     xmp = layout.ifd0.entries.get(XMP_PACKET)
     packet = b""

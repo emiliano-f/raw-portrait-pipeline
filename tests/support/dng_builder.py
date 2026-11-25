@@ -48,6 +48,8 @@ class DngSpec:
     gps: bool = False
     """Add an EXIF GPS IFD (version, latitude ref and an out-of-line latitude) to IFD0."""
     xmp: bytes | None = None
+    original_raw: bytes | None = None
+    """Embedded original raw file (``OriginalRawFileData``)."""
 
 
 class _Buffer:
@@ -174,4 +176,6 @@ def _metadata(buf: _Buffer, s: DngSpec) -> list[tuple[int, int, list[int] | byte
         entries.append((34853, LONG, [gps_ifd]))
     if s.xmp is not None:
         entries.append((700, BYTE, s.xmp))
+    if s.original_raw is not None:
+        entries.append((50817, UNDEFINED, s.original_raw))
     return entries

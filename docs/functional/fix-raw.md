@@ -151,6 +151,9 @@ CR2.
 JPG/TIFF exports do. The GPS directory is zeroed and unlinked from IFD0 and the
 XMP GPS fields are blanked in place; the raw image data and its digests are not
 touched. Set `raw_export.keep_gps: true` to keep the location in the DNG only.
+A DNG that embeds its original raw file (Adobe DNG Converter's "Embed Original
+Raw File") fails while GPS is being stripped, because the embedded CR2 keeps its
+own GPS; convert without embedding, or set `raw_export.keep_gps: true`.
 
 `raw_export.preview`:
 

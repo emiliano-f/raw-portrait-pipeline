@@ -298,6 +298,15 @@ def test_keep_gps_copies_gps_metadata(tmp_path: Path) -> None:
     assert GPS_LATITUDE in result.path.read_bytes()
 
 
+def test_embedded_original_refuses_gps_stripping(tmp_path: Path) -> None:
+    base = write_dng(tmp_path / "base.dng", DngSpec(original_raw=b"CR2 with GPS" * 4))
+    with pytest.raises(DngFormatError, match="OriginalRawFileData"):
+        WRITER.write(base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False)
+    assert list(tmp_path.iterdir()) == [base]
+    kept = WRITER.write(base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False, keep_gps=True)
+    assert kept.path.exists()
+
+
 def test_xmp_gps_under_another_prefix_is_stripped(tmp_path: Path) -> None:
     xmp = b'<rdf:Description xmlns:ns1="http://ns.adobe.com/exif/1.0/" ns1:GPSLatitude="34,36.0S"/>'
     base = write_dng(tmp_path / "base.dng", DngSpec(xmp=xmp))
