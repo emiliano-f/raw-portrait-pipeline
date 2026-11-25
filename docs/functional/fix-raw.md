@@ -144,6 +144,7 @@ CR2.
 | EXIF, camera profiles, colour matrices, white balance, crop, orientation | Unchanged (the TIFF/DNG structure is not rebuilt) |
 | GPS (EXIF GPS IFD and XMP `exif:GPS*` fields) | Stripped, unless `raw_export.keep_gps` |
 | `RawImageDigest` / `NewRawImageDigest` | Recomputed, or removed when they cannot be reproduced (see the report) |
+| `RawDataUniqueID` | Replaced when photosites changed: `MD5(old ID + NewRawImageDigest of the corrected data)`, so Lightroom and other Adobe apps do not mistake the corrected DNG for the base (cached previews, catalog matching); unchanged in passthrough |
 | Embedded previews/thumbnails | Per `raw_export.preview` |
 
 `raw_export.keep_gps` (default unset, which means "same as
@@ -194,6 +195,17 @@ is reported as failed. The checks run on the finished file before it is moved in
 5. The DNG still has its raw image where it was (same layout, same CFA).
 6. Inputs (CR2 and, for `existing_dng`, the DNG) have the same SHA-256 as before.
 
+### Known limitation: a defect pixel on a thin bright stripe
+
+Check 4 compares a mapped **pixel** with its eight same-colour neighbours. If
+the pixel lies on a one-pixel-wide bright scene stripe (a hair or cable lit
+from the side) and the `directional` corrector correctly repairs it along the
+stripe, the repaired value still differs from the darker background around it,
+so verification can reject a correct DNG. This fails safe: that image is
+reported as failed and no DNG is published for it. If you have checked the
+result yourself, `raw_export.verify: false` skips verification (the report
+then says `skipped`). Columns and rows are not affected.
+
 ## The report
 
 `fix_raw_report.csv` (`raw_export.report_filename`) has one row per input:
@@ -210,5 +222,6 @@ is reported as failed. The checks run on the finished file before it is moved in
 | `digest` | `absent`, `unchanged`, `recomputed` or `removed` |
 | `preview` | Preview handling actually applied |
 | `gps` | `absent`, `kept` or `stripped` |
+| `raw_data_unique_id`, `raw_data_unique_id_value` | `absent`, `unchanged` (passthrough) or `replaced`, and the output's ID in hex |
 | `embedded_original` | `absent`, or `kept` with `raw_export.allow_embedded_original` |
 | `verification` | `passed`, `passed_residual` (see [Verification](#verification)) or `skipped` |

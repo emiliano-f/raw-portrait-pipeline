@@ -35,10 +35,16 @@ profiles, EXIF and maker data, which converters already get right.
 5. **Digests.** Recompute `RawImageDigest`/`NewRawImageDigest` only when the
    implementation reproduces the stored values from the base data; otherwise
    remove both tags. Never leave a stale digest.
-6. **Previews.** `raw_export.preview`: `regenerate` (default; render from the
+6. **RawDataUniqueID.** Adobe apps identify raw data by this ID (cached
+   renders, catalog matching), so a corrected DNG must not keep the base's ID.
+   When photosites changed it is replaced in place (16 bytes, no structural
+   change) with `MD5(old ID + NewRawImageDigest of the corrected raw data)`:
+   deterministic, and different from the base and from other corrections.
+   Passthrough output keeps it (byte-identical). The report records it.
+7. **Previews.** `raw_export.preview`: `regenerate` (default; render from the
    corrected DNG and replace in place where the format allows), `keep`, or
    `remove`. The applied handling is reported per image.
-7. **Verification by default.** After writing: LibRaw opens it, untouched
+8. **Verification by default.** After writing: LibRaw opens it, untouched
    photosites are byte-identical, corrected ones equal the corrector output,
    each configured defect's detector score dropped (a weaker residual next to
    a thin scene stripe passes with a warning), the layout is intact, inputs

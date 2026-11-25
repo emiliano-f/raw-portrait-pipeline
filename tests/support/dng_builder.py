@@ -49,6 +49,8 @@ class DngSpec:
     """Add an EXIF GPS IFD (version, latitude ref and an out-of-line latitude) to IFD0."""
     xmp: bytes | None = None
     original_raw: bytes | None = None
+    unique_id: bytes | None = None
+    """``RawDataUniqueID`` (16 bytes)."""
     """Embedded original raw file (``OriginalRawFileData``)."""
 
 
@@ -169,13 +171,15 @@ def write_dng(path: Path, spec: DngSpec | None = None) -> Path:
 
 
 def _metadata(buf: _Buffer, s: DngSpec) -> list[tuple[int, int, list[int] | bytes]]:
-    """Optional GPS IFD pointer and XMP packet entries of IFD0."""
+    """Optional GPS, XMP, RawDataUniqueID and OriginalRawFileData entries of IFD0."""
     entries: list[tuple[int, int, list[int] | bytes]] = []
     if s.gps:
         gps_ifd = buf.ifd([(0, BYTE, b"\x02\x03\x00\x00"), (1, ASCII, b"S\0"), (2, RATIONAL, [34, 1, 36, 1, 7, 1])])
         entries.append((34853, LONG, [gps_ifd]))
     if s.xmp is not None:
         entries.append((700, BYTE, s.xmp))
+    if s.unique_id is not None:
+        entries.append((50781, BYTE, s.unique_id))
     if s.original_raw is not None:
         entries.append((50817, UNDEFINED, s.original_raw))
     return entries

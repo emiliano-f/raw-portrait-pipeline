@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import re
@@ -16,7 +17,15 @@ from typing import BinaryIO, Final
 import numpy as np
 from numpy.typing import NDArray
 
-from raw_pipeline.core.dng import DigestHandling, DngRawImage, DngWriteResult, GpsHandling, PreviewMode, RawPatch
+from raw_pipeline.core.dng import (
+    DigestHandling,
+    DngRawImage,
+    DngWriteResult,
+    GpsHandling,
+    PreviewMode,
+    RawPatch,
+    UniqueIdHandling,
+)
 from raw_pipeline.core.errors import DngFormatError, OutputExistsError
 from raw_pipeline.io.dng import preview as previews
 from raw_pipeline.io.dng.digest import legacy_raw_digest, new_raw_digest
@@ -28,6 +37,7 @@ from raw_pipeline.io.dng.tiff import (
     NEW_RAW_IMAGE_DIGEST,
     ORIGINAL_RAW_FILE_DATA,
     PLANAR_CONFIGURATION,
+    RAW_DATA_UNIQUE_ID,
     RAW_IMAGE_DIGEST,
     SAMPLES_PER_PIXEL,
     STRIP_BYTE_COUNTS,
@@ -58,6 +68,7 @@ TYPE_FORMATS: Final = {1: "B", 3: "H", 4: "I", 7: "B", 13: "I"}
 LONG_TYPES: Final = frozenset({4, 13})
 FIELD_TYPE_SIZES: Final = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4, 10: 8, 11: 4, 12: 8, 13: 4}
 """Bytes per value of every classic-TIFF field type (to find out-of-line GPS values)."""
+UNIQUE_ID_BYTES: Final = 16
 IFD_HEADER_BYTES: Final = 2
 NEXT_IFD_BYTES: Final = 4
 _XMP_ATTRS: Final = rb"""(?:[^>"']|"[^"]*"|'[^']*')*"""
@@ -234,6 +245,7 @@ class TiffDngRawWriter:
                 editor = _Editor(fh, layout.byteorder)
                 written = _patch_raw(editor, layout, patch)
                 digest = self._digests(editor, layout, base, patch)
+                unique_id, unique_hex = _unique_id(editor, layout, base, patch)
                 fh.flush()
                 applied = self._previews(editor, fh, layout, tmp, preview) if len(patch) else PreviewMode.KEEP
                 gps = _gps(editor, fh, layout, keep=keep_gps)
@@ -245,7 +257,7 @@ class TiffDngRawWriter:
         except BaseException:
             tmp.unlink(missing_ok=True)
             raise
-        return DngWriteResult(destination, written, digest, applied, gps, embedded)
+        return DngWriteResult(destination, written, digest, applied, gps, embedded, unique_id, unique_hex)
 
     @staticmethod
     def _digests(editor: _Editor, layout: DngLayout, base: Path, patch: RawPatch) -> DigestHandling:
@@ -325,6 +337,31 @@ def _publish(tmp: Path, destination: Path, *, overwrite: bool) -> None:
         tmp.replace(destination)
         return
     tmp.unlink()
+
+
+def _unique_id(editor: _Editor, layout: DngLayout, base: Path, patch: RawPatch) -> tuple[UniqueIdHandling, str]:
+    """Replace ``RawDataUniqueID`` in place when photosites changed, so the output is not taken for the base.
+
+    The new ID is ``MD5(old ID + NewRawImageDigest of the corrected raw data)``: deterministic, and
+    different for every correction of the same base.
+
+    Raises:
+        DngFormatError: The stored ID is not 16 bytes.
+    """
+    entry = layout.ifd0.entries.get(RAW_DATA_UNIQUE_ID)
+    if entry is None:
+        return UniqueIdHandling.ABSENT, ""
+    old = bytes(entry.value)
+    if len(old) != UNIQUE_ID_BYTES:
+        msg = f"{base.name}: RawDataUniqueID has {len(old)} bytes, expected {UNIQUE_ID_BYTES}"
+        raise DngFormatError(msg)
+    if not len(patch):
+        return UniqueIdHandling.UNCHANGED, old.hex()
+    corrected = layout.raw_grid().read(base, layout.raw_dtype).astype(np.uint16)
+    corrected[patch.ys, patch.xs] = patch.values
+    new = hashlib.md5(old + new_raw_digest(corrected), usedforsecurity=False).digest()
+    editor.write_at(entry.value_offset, new)
+    return UniqueIdHandling.REPLACED, new.hex()
 
 
 def _check_embedded_original(layout: DngLayout, *, allow: bool, keep_gps: bool) -> bool:

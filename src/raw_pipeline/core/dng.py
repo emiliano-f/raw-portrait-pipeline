@@ -41,6 +41,14 @@ class GpsHandling(StrEnum):
     STRIPPED = "stripped"
 
 
+class UniqueIdHandling(StrEnum):
+    """What happened to ``RawDataUniqueID`` in the corrected DNG."""
+
+    ABSENT = "absent"
+    UNCHANGED = "unchanged"
+    REPLACED = "replaced"
+
+
 @dataclass(frozen=True)
 class BaseDng:
     """The unmodified DNG a source produced for one input.
@@ -126,6 +134,8 @@ class DngWriteResult:
         digest: Handling of the raw image digests.
         preview: Preview handling actually applied.
         gps: Handling of GPS metadata.
+        unique_id: Handling of ``RawDataUniqueID`` (replaced when photosites changed).
+        unique_id_value: The output's ``RawDataUniqueID`` as hex ("" when absent).
         embedded_original: The output still embeds the original raw file (``OriginalRawFileData``),
             which shows the uncorrected defect.
     """
@@ -136,3 +146,5 @@ class DngWriteResult:
     preview: PreviewMode
     gps: GpsHandling = GpsHandling.ABSENT
     embedded_original: bool = False
+    unique_id: UniqueIdHandling = UniqueIdHandling.ABSENT
+    unique_id_value: str = ""

@@ -8,10 +8,17 @@ import numpy as np
 import pytest
 import rawpy
 
-from raw_pipeline.core.dng import DigestHandling, GpsHandling, PreviewMode, RawPatch
+from raw_pipeline.core.dng import DigestHandling, GpsHandling, PreviewMode, RawPatch, UniqueIdHandling
 from raw_pipeline.core.errors import DngFormatError, OutputExistsError
 from raw_pipeline.io.dng.digest import legacy_raw_digest, new_raw_digest
-from raw_pipeline.io.dng.tiff import NEW_RAW_IMAGE_DIGEST, RAW_IMAGE_DIGEST, SUB_IFDS, read_layout, read_raw
+from raw_pipeline.io.dng.tiff import (
+    NEW_RAW_IMAGE_DIGEST,
+    RAW_DATA_UNIQUE_ID,
+    RAW_IMAGE_DIGEST,
+    SUB_IFDS,
+    read_layout,
+    read_raw,
+)
 from raw_pipeline.io.dng.writer import TiffDngRawWriter
 from tests.support.dng_builder import DngSpec, raw_frame, write_dng
 
@@ -387,3 +394,38 @@ def test_gps_stripping_after_preview_edits_keeps_raw_intact(tmp_path: Path, prev
     np.testing.assert_array_equal(read_raw(result.path).data, expected)
     assert not _gps_tags(result.path)[0]
     assert GPS_LATITUDE not in result.path.read_bytes()
+
+
+UNIQUE_ID = bytes(range(16))
+
+
+def test_raw_data_unique_id_is_replaced_when_photosites_change(tmp_path: Path) -> None:
+    spec = DngSpec(unique_id=UNIQUE_ID, digests="valid")
+    base = write_dng(tmp_path / "base.dng", spec)
+    patch = _column_patch()
+    first = WRITER.write(base, tmp_path / "a.dng", patch, preview=PreviewMode.KEEP, overwrite=False)
+    second = WRITER.write(base, tmp_path / "b.dng", patch, preview=PreviewMode.KEEP, overwrite=False)
+    expected = spec.raw.copy()
+    expected[patch.ys, patch.xs] = patch.values
+    new_id = hashlib.md5(UNIQUE_ID + new_raw_digest(expected), usedforsecurity=False).digest()
+    assert first.unique_id is UniqueIdHandling.REPLACED
+    assert first.unique_id_value == second.unique_id_value == new_id.hex()
+    layout = read_layout(first.path)
+    assert bytes(layout.ifd0.entries[RAW_DATA_UNIQUE_ID].value) == new_id
+    assert bytes(layout.ifd0.entries[NEW_RAW_IMAGE_DIGEST].value) == new_raw_digest(expected)
+    np.testing.assert_array_equal(read_raw(first.path).data, expected)
+    assert len(first.path.read_bytes()) == len(base.read_bytes())
+
+
+def test_raw_data_unique_id_is_unchanged_in_passthrough(tmp_path: Path) -> None:
+    base = write_dng(tmp_path / "base.dng", DngSpec(unique_id=UNIQUE_ID))
+    empty = RawPatch(np.zeros(0, np.intp), np.zeros(0, np.intp), np.zeros(0, np.uint16))
+    result = WRITER.write(base, tmp_path / "o.dng", empty, preview=PreviewMode.KEEP, overwrite=False)
+    assert (result.unique_id, result.unique_id_value) == (UniqueIdHandling.UNCHANGED, UNIQUE_ID.hex())
+    assert result.path.read_bytes() == base.read_bytes()
+
+
+def test_raw_data_unique_id_absent(tmp_path: Path) -> None:
+    base = write_dng(tmp_path / "base.dng", DngSpec())
+    result = WRITER.write(base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False)
+    assert (result.unique_id, result.unique_id_value) == (UniqueIdHandling.ABSENT, "")

@@ -365,3 +365,16 @@ def test_allowed_embedded_original_is_reported_with_a_warning(tmp_path: Path) ->
     assert code == 0, text
     assert "still embeds the original raw file" in text
     assert _report(out)[0]["embedded_original"] == "kept"
+
+
+def test_report_records_the_replaced_raw_data_unique_id(tmp_path: Path) -> None:
+    src, out = tmp_path / "in", tmp_path / "out"
+    src.mkdir()
+    write_dng(src / "IMG_0001.dng", dataclasses.replace(_hot_spec(), unique_id=bytes(16)))
+    (src / "IMG_0001.CR2").write_bytes(b"cr2")
+    code, text = _run("fix-raw", src, out, "--config", _config(tmp_path))
+    assert code == 0, text
+    (row,) = _report(out)
+    assert row["raw_data_unique_id"] == "replaced"
+    assert len(row["raw_data_unique_id_value"]) == 32
+    assert row["raw_data_unique_id_value"] != bytes(16).hex()

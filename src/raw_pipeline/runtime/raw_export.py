@@ -52,6 +52,8 @@ class FixRawRecord:
     digest: str = ""
     gps: str = ""
     embedded_original: str = ""
+    raw_data_unique_id: str = ""
+    raw_data_unique_id_value: str = ""
     preview: str = ""
     verification: str = ""
     error: str = ""
@@ -185,6 +187,8 @@ class RawExportService:
                 digest=str(result.digest),
                 gps=str(result.gps),
                 embedded_original="kept" if result.embedded_original else "absent",
+                raw_data_unique_id=str(result.unique_id),
+                raw_data_unique_id_value=result.unique_id_value,
                 preview=str(result.preview),
             )
             verification = (PASSED_RESIDUAL if residuals else PASSED) if self._verify else SKIPPED
