@@ -71,10 +71,17 @@ def residual_defects(
     about 0.9 of the uncorrected score. So the check is relative: a residual
     is accepted (:attr:`DefectResidual.improved`) when its score is lower
     than in the uncorrected frame; an unchanged or newly appeared line is not.
+
+    The "before" score puts only this defect's photosites back to their
+    uncorrected values (everything else as corrected), so a stronger adjacent
+    line that the detector merged into one band cannot lend it its score.
     """
     residuals: list[DefectResidual] = []
+    height, width = after.data.shape
     for defect in defects.defects:
         after_score = _score(after, defect, detector)
         if after_score > 0:
-            residuals.append(DefectResidual(defect, _score(before, defect, detector), after_score))
+            own = DefectMap((defect,)).mask(height, width)
+            isolated = after.with_data(np.where(own, before.data, after.data))
+            residuals.append(DefectResidual(defect, _score(isolated, defect, detector), after_score))
     return residuals

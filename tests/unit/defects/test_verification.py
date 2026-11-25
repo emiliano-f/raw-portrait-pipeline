@@ -101,3 +101,17 @@ def test_line_introduced_by_correction_is_not_improved() -> None:
     [residual] = residual_defects(clean, broken, defects, StatisticalDefectDetector())
     assert residual.score_before == 0
     assert not residual.improved
+
+
+def test_worse_line_is_not_hidden_by_a_stronger_corrected_neighbour() -> None:
+    weak, strong = ColumnDefect(index=LINE), ColumnDefect(index=LINE + 1)
+    clean = cfa_frame(SIZE, SIZE, level=LOW, seed=11)
+    before = clean.data.astype(np.int32)
+    before[:, LINE] += 300
+    before[:, LINE + 1] += 6000
+    after = clean.data.astype(np.int32)
+    after[:, LINE] += 1500  # the configured weak line got worse; its stronger neighbour was fixed
+    frames = [clean.with_data(np.clip(d, 0, 65535).astype(np.uint16)) for d in (before, after)]
+    (residual,) = residual_defects(frames[0], frames[1], DefectMap((weak, strong)), StatisticalDefectDetector())
+    assert residual.defect == weak
+    assert not residual.improved
