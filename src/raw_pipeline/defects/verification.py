@@ -53,8 +53,11 @@ def _score(frame: CFAFrame, defect: Defect, detector: StatisticalDefectDetector)
 
 
 def _deviation(frame: CFAFrame, defect: Defect) -> float:
-    """Median absolute difference (DN) of the defect's photosites from their nearest same-colour photosites
-    outside it, across the line (left/right for columns and pixels, above/below for rows)."""
+    """Median absolute difference (DN) of the defect's photosites from their nearest same-colour neighbours.
+
+    Neighbours are the nearest photosites of the same CFA colour outside the defect, across the line
+    (left/right for columns and pixels, above/below for rows).
+    """
     height, width = frame.data.shape
     own = DefectMap((defect,)).mask(height, width)
     data = frame.data.astype(np.float64)
