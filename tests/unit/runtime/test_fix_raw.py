@@ -13,7 +13,7 @@ import pytest
 
 from raw_pipeline import cli
 from raw_pipeline.core.errors import DecodeError
-from raw_pipeline.core.raw import CFAFrame, ColumnDefect
+from raw_pipeline.core.raw import CFAFrame, ColumnDefect, Defect, DefectResidual
 from raw_pipeline.core.registry import BuildEnv
 from raw_pipeline.defects.directional import DirectionalCorrector
 from raw_pipeline.defects.null import NullDefectCorrector
@@ -92,8 +92,9 @@ def _registries() -> ComponentRegistries:
     return regs
 
 
-def _services(remaining: list[object] | None = None) -> RuntimeServices:
-    return dataclasses.replace(FakeServices().services(), remaining_defects=lambda *_: list(remaining or []))
+def _services(remaining: list[Defect] | None = None, *, score_after: float = 50.0) -> RuntimeServices:
+    residuals = [DefectResidual(d, score_before=50.0, score_after=score_after) for d in remaining or []]
+    return dataclasses.replace(FakeServices().services(), remaining_defects=lambda *_: residuals)
 
 
 def _run(*argv: object, services: RuntimeServices | None = None) -> tuple[int, str]:
@@ -270,3 +271,13 @@ def test_passthrough_with_regenerate_is_byte_identical(tmp_path: Path) -> None:
     assert code == 0
     assert (out / "IMG_0001.dng").read_bytes() == (src / "IMG_0001.dng").read_bytes()
     assert _report(out)[0]["preview"] == "keep"
+
+
+def test_weaker_residual_passes_with_warning(tmp_path: Path) -> None:
+    src, out = _inputs(tmp_path / "in", ("IMG_0001",)), tmp_path / "out"
+    services = _services([ColumnDefect(index=10)], score_after=20.0)
+    code, text = _run("fix-raw", src, out, "--config", _config(tmp_path), services=services)
+    assert code == 0
+    assert (out / "IMG_0001.dng").exists()
+    assert _report(out)[0]["verification"] == "passed_residual"
+    assert "accepted as a residual" in text

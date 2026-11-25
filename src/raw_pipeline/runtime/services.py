@@ -18,7 +18,7 @@ from raw_pipeline.config.models import DefectDetectionConfig
 from raw_pipeline.core.dng import DngRawImage
 from raw_pipeline.core.errors import PipelineError
 from raw_pipeline.core.protocols import DefectDetector, DngRawWriter
-from raw_pipeline.core.raw import CFAFrame, Defect, DefectMap
+from raw_pipeline.core.raw import CFAFrame, DefectMap, DefectResidual
 
 
 class ComponentUnavailableError(PipelineError):
@@ -83,8 +83,8 @@ class RawPlacement(Protocol):
         ...
 
 
-RemainingDefects = Callable[[CFAFrame, DefectMap, DefectDetectionConfig], list[Defect]]
-"""Configured defects the detector still finds in a corrected frame (empty when they are gone)."""
+RemainingDefects = Callable[[CFAFrame, CFAFrame, DefectMap, DefectDetectionConfig], list[DefectResidual]]
+"""Configured defects the detector still finds after correction, scored before vs after (empty when gone)."""
 
 
 class _Placement:
@@ -110,11 +110,13 @@ def _write_report(rows: Sequence[Mapping[str, object]], path: Path, *, overwrite
     return cast("Path", resolve("raw_pipeline.io.dng.report", "write_fix_raw_report")(rows, path, overwrite=overwrite))
 
 
-def _remaining_defects(frame: CFAFrame, defects: DefectMap, config: DefectDetectionConfig) -> list[Defect]:
+def _remaining_defects(
+    before: CFAFrame, after: CFAFrame, defects: DefectMap, config: DefectDetectionConfig
+) -> list[DefectResidual]:
     detector_cls = resolve("raw_pipeline.defects.detection", "StatisticalDefectDetector")
     detector = detector_cls.from_config(config)  # type: ignore[attr-defined]
-    found = resolve("raw_pipeline.defects.verification", "remaining_defects")(frame, defects, detector)
-    return [defect for defect, _ in found]
+    found = resolve("raw_pipeline.defects.verification", "residual_defects")(before, after, defects, detector)
+    return cast("list[DefectResidual]", found)
 
 
 @dataclass(frozen=True)

@@ -194,6 +194,26 @@ class DetectedDefect:
 
 
 @dataclass(frozen=True)
+class DefectResidual:
+    """A configured defect the detector still finds after correction.
+
+    Attributes:
+        defect: The configured defect.
+        score_before: Its detector score in the uncorrected frame (0 when not detected).
+        score_after: Its detector score in the corrected frame.
+    """
+
+    defect: Defect
+    score_before: float
+    score_after: float
+
+    @property
+    def improved(self) -> bool:
+        """Whether correction lowered the score (a weaker residual, not an unchanged or new line)."""
+        return self.score_after < self.score_before
+
+
+@dataclass(frozen=True)
 class DevelopedImage:
     """Demosaiced output of a :class:`~raw_pipeline.core.protocols.RawHandle`.
 

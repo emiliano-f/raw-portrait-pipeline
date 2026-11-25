@@ -20,7 +20,7 @@ from raw_pipeline.config.models import DefectDetectionConfig
 from raw_pipeline.core.dng import BaseDng, CFAOffset, DngRawImage, PreviewMode, RawPatch
 from raw_pipeline.core.errors import OutputExistsError, PipelineError, VerificationError
 from raw_pipeline.core.protocols import DefectCorrector, DngRawWriter, DngSource, RawDecoder
-from raw_pipeline.core.raw import CFAFrame, DefectMap
+from raw_pipeline.core.raw import CFAFrame, DefectMap, DefectResidual
 from raw_pipeline.runtime.services import RawPlacement, RemainingDefects
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,8 @@ logger = logging.getLogger(__name__)
 HASH_CHUNK_BYTES: Final = 1 << 20
 TEMP_PREFIX: Final = "raw-pipeline-fix-raw-"
 PASSED: Final = "passed"
+PASSED_RESIDUAL: Final = "passed_residual"
+"""Verification passed, but a corrected line still scores weakly (next to a thin scene stripe)."""
 SKIPPED: Final = "skipped"
 
 
@@ -158,16 +160,17 @@ class RawExportService:
                 (xs + fixed.offset.x).astype(np.intp),
                 fixed.corrected.data[changed].astype(np.uint16),
             )
+            residuals: list[DefectResidual] = []
             result = self._writer.write(
                 base.path,
                 destination,
                 patch,
                 preview=self._preview,
                 overwrite=overwrite,
-                check=(lambda out: self._check(fixed, out, hashes)) if self._verify else None,
+                check=(lambda out: residuals.extend(self._check(fixed, out, hashes))) if self._verify else None,
             )
             record = _with(record, output_file=str(result.path), digest=str(result.digest), preview=str(result.preview))
-            verification = PASSED if self._verify else SKIPPED
+            verification = (PASSED_RESIDUAL if residuals else PASSED) if self._verify else SKIPPED
         if record.passthrough:
             logger.info("%s: passthrough (no photosite changed)", path.name)
         return _with(record, status="ok", verification=verification)
@@ -182,7 +185,8 @@ class RawExportService:
         count = int(np.count_nonzero(result.frame.data != frame.data))
         return _Corrected(base, raw, placement.offset, placement.method, frame, result.frame, count)
 
-    def _check(self, fixed: _Corrected, output: Path, hashes: dict[Path, str]) -> None:
+    def _check(self, fixed: _Corrected, output: Path, hashes: dict[Path, str]) -> list[DefectResidual]:
+        """Raise :class:`VerificationError` on any problem; return the weak residuals that were tolerated."""
         problems: list[str] = []
         written = self._writer.read_raw(output)
         if written.data.shape != fixed.raw.data.shape or written.cfa_pattern != fixed.raw.cfa_pattern:
@@ -201,12 +205,25 @@ class RawExportService:
                 handle.read_cfa()
         except PipelineError as exc:
             problems.append(f"LibRaw cannot open the output: {exc}")
-        remaining = self._remaining(fixed.corrected, self._defects, self._detection) if fixed.count else []
-        problems.extend(f"defect still detected: {defect}" for defect in remaining)
+        residuals = self._remaining(fixed.frame, fixed.corrected, self._defects, self._detection) if fixed.count else []
+        problems.extend(
+            f"defect still detected: {r.defect} (score {r.score_before:.1f} -> {r.score_after:.1f})"
+            for r in residuals
+            if not r.improved
+        )
         problems.extend(f"input changed: {p}" for p, digest in hashes.items() if file_digest(p) != digest)
         if problems:
             msg = "verification failed (nothing written): " + "; ".join(problems)
             raise VerificationError(msg)
+        for r in residuals:
+            logger.warning(
+                "%s: %s still scores %.1f after correction (%.1f before); accepted as a residual",
+                fixed.base.reference.name,
+                r.defect,
+                r.score_after,
+                r.score_before,
+            )
+        return residuals
 
 
 def _compare(

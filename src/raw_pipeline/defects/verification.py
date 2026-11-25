@@ -1,4 +1,4 @@
-"""Check that configured defects are gone from a corrected CFA, with the existing detector scoring."""
+"""Check that configured defects are gone (or much weaker) in a corrected CFA, with the existing detector scoring."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import Final
 
 import numpy as np
 
-from raw_pipeline.core.raw import CFA_TILE_SIZE, CFAFrame, ColumnDefect, Defect, DefectMap, DetectedDefect, RowDefect
+from raw_pipeline.core.raw import CFA_TILE_SIZE, CFAFrame, ColumnDefect, Defect, DefectMap, DefectResidual, RowDefect
 from raw_pipeline.defects.detection import StatisticalDefectDetector
 
 WINDOW_MARGIN_PX: Final = 32
@@ -35,29 +35,46 @@ def _window(defect: Defect, height: int, width: int) -> tuple[slice, slice]:
     return rows, cols
 
 
-def remaining_defects(
-    frame: CFAFrame, defects: DefectMap, detector: StatisticalDefectDetector
-) -> list[tuple[Defect, DetectedDefect]]:
-    """Configured defects the detector still finds in ``frame``, with the detection that overlaps each.
+def _score(frame: CFAFrame, defect: Defect, detector: StatisticalDefectDetector) -> float:
+    """Detector score of ``defect`` in ``frame``, or 0 when the detector does not find it."""
+    height, width = frame.data.shape
+    rows, cols = _window(defect, height, width)
+    if rows.start >= rows.stop or cols.start >= cols.stop:
+        return 0.0
+    window = frame.with_data(np.ascontiguousarray(frame.data[rows, cols]))
+    own = DefectMap((defect,)).mask(height, width)[rows, cols]
+    win_h, win_w = own.shape
+    scores = [
+        found.score
+        for found in detector.detect([window])
+        if type(found.defect) is type(defect) and (DefectMap((found.defect,)).mask(win_h, win_w) & own).any()
+    ]
+    return max(scores, default=0.0)
+
+
+def residual_defects(
+    before: CFAFrame,
+    after: CFAFrame,
+    defects: DefectMap,
+    detector: StatisticalDefectDetector,
+) -> list[DefectResidual]:
+    """Configured defects the detector still finds in ``after``, scored against ``before``.
 
     Each defect is re-scored in a window around it (windows start on even
     rows/columns, so the CFA pattern is unchanged); only detections that
     overlap the defect's own photosites *and* have the same kind (a column
-    for a column, ...) count, so scene edges crossing the window and single
-    textured photosites along a corrected line are ignored.
+    for a column, ...) count, so scene edges crossing the window are ignored.
+
+    A corrected line next to a thin scene stripe (a hair, a cable) takes part
+    of the stripe's level from its same-colour neighbours (all its vertical
+    neighbours are defective too) and can still score as a line, at up to
+    about 0.9 of the uncorrected score. So the check is relative: a residual
+    is accepted (:attr:`DefectResidual.improved`) when its score is lower
+    than in the uncorrected frame; an unchanged or newly appeared line is not.
     """
-    height, width = frame.data.shape
-    remaining: list[tuple[Defect, DetectedDefect]] = []
+    residuals: list[DefectResidual] = []
     for defect in defects.defects:
-        rows, cols = _window(defect, height, width)
-        if rows.start >= rows.stop or cols.start >= cols.stop:
-            continue
-        window = frame.with_data(np.ascontiguousarray(frame.data[rows, cols]))
-        own = DefectMap((defect,)).mask(height, width)[rows, cols]
-        win_h, win_w = own.shape
-        for found in detector.detect([window]):
-            same_kind = type(found.defect) is type(defect)
-            if same_kind and (DefectMap((found.defect,)).mask(win_h, win_w) & own).any():
-                remaining.append((defect, found))
-                break
-    return remaining
+        after_score = _score(after, defect, detector)
+        if after_score > 0:
+            residuals.append(DefectResidual(defect, _score(before, defect, detector), after_score))
+    return residuals
