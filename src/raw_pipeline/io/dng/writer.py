@@ -69,6 +69,7 @@ LONG_TYPES: Final = frozenset({4, 13})
 FIELD_TYPE_SIZES: Final = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4, 10: 8, 11: 4, 12: 8, 13: 4}
 """Bytes per value of every classic-TIFF field type (to find out-of-line GPS values)."""
 UNIQUE_ID_BYTES: Final = 16
+UNIQUE_ID_TYPES: Final = frozenset({1, 7})
 IFD_HEADER_BYTES: Final = 2
 NEXT_IFD_BYTES: Final = 4
 _XMP_ATTRS: Final = rb"""(?:[^>"']|"[^"]*"|'[^']*')*"""
@@ -351,10 +352,13 @@ def _unique_id(editor: _Editor, layout: DngLayout, base: Path, patch: RawPatch) 
     entry = layout.ifd0.entries.get(RAW_DATA_UNIQUE_ID)
     if entry is None:
         return UniqueIdHandling.ABSENT, ""
-    old = bytes(entry.value)
-    if len(old) != UNIQUE_ID_BYTES:
-        msg = f"{base.name}: RawDataUniqueID has {len(old)} bytes, expected {UNIQUE_ID_BYTES}"
+    if entry.dtype not in UNIQUE_ID_TYPES or entry.count != UNIQUE_ID_BYTES or not isinstance(entry.value, bytes):
+        msg = (
+            f"{base.name}: RawDataUniqueID is type {entry.dtype} with {entry.count} values, "
+            f"expected {UNIQUE_ID_BYTES} BYTE values"
+        )
         raise DngFormatError(msg)
+    old = entry.value
     if not len(patch):
         return UniqueIdHandling.UNCHANGED, old.hex()
     corrected = layout.raw_grid().read(base, layout.raw_dtype).astype(np.uint16)

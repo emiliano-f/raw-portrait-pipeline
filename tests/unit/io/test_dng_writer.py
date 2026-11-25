@@ -429,3 +429,15 @@ def test_raw_data_unique_id_absent(tmp_path: Path) -> None:
     base = write_dng(tmp_path / "base.dng", DngSpec())
     result = WRITER.write(base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False)
     assert (result.unique_id, result.unique_id_value) == (UniqueIdHandling.ABSENT, "")
+
+
+def test_raw_data_unique_id_of_another_type_is_rejected(tmp_path: Path) -> None:
+    base = write_dng(tmp_path / "base.dng", DngSpec(unique_id=UNIQUE_ID))
+    layout = read_layout(base)
+    entry = layout.ifd0.entries[RAW_DATA_UNIQUE_ID]
+    data = bytearray(base.read_bytes())
+    data[entry.entry_offset + 2 : entry.entry_offset + 12] = struct.pack(layout.byteorder + "HII", 4, 1, 16)
+    base.write_bytes(bytes(data))
+    with pytest.raises(DngFormatError, match="RawDataUniqueID"):
+        WRITER.write(base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False)
+    assert not (tmp_path / "o.dng").exists()
