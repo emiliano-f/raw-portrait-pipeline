@@ -303,7 +303,9 @@ def test_embedded_original_refuses_gps_stripping(tmp_path: Path) -> None:
     with pytest.raises(DngFormatError, match="OriginalRawFileData"):
         WRITER.write(base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False)
     assert list(tmp_path.iterdir()) == [base]
-    kept = WRITER.write(base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False, keep_gps=True)
+    kept = WRITER.write(
+        base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False, keep_gps=True
+    )
     assert kept.path.exists()
 
 

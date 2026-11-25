@@ -25,8 +25,8 @@ from raw_pipeline.io.dng.tiff import (
     COMPRESSION_NONE,
     ENTRY_SIZE,
     GPS_INFO,
-    ORIGINAL_RAW_FILE_DATA,
     NEW_RAW_IMAGE_DIGEST,
+    ORIGINAL_RAW_FILE_DATA,
     PLANAR_CONFIGURATION,
     RAW_IMAGE_DIGEST,
     SAMPLES_PER_PIXEL,
@@ -61,9 +61,9 @@ FIELD_TYPE_SIZES: Final = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4,
 IFD_HEADER_BYTES: Final = 2
 NEXT_IFD_BYTES: Final = 4
 XMP_GPS_PATTERNS: Final = (
-    re.compile(rb"<([A-Za-z_][\\w.-]*:GPS\w*)\b[^>]*>.*?</\1\s*>", re.DOTALL),
-    re.compile(rb"<[A-Za-z_][\\w.-]*:GPS\w*\b[^>]*/>"),
-    re.compile(rb"\s[A-Za-z_][\\w.-]*:GPS\w*\s*=\s*(?:\"[^\"]*\"|'[^']*')"),
+    re.compile(rb"<([A-Za-z_][\w.-]*:GPS\w*)\b[^>]*>.*?</\1\s*>", re.DOTALL),
+    re.compile(rb"<[A-Za-z_][\w.-]*:GPS\w*\b[^>]*/>"),
+    re.compile(rb"\s[A-Za-z_][\w.-]*:GPS\w*\s*=\s*(?:\"[^\"]*\"|'[^']*')"),
 )
 """XMP GPS properties under any namespace prefix (elements and attributes); blanked with spaces so the
 packet keeps its length."""
