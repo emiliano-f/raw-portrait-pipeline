@@ -131,3 +131,29 @@ def test_repaired_line_merged_with_a_stronger_scene_stripe_passes(corrector: Def
     fixed = corrector.correct(hot, defects).frame
     residuals = residual_defects(hot, fixed, defects, StatisticalDefectDetector())
     assert all(r.improved for r in residuals), residuals
+
+
+def test_unrepaired_segment_is_not_hidden_by_the_rest_of_the_line() -> None:
+    defects = DefectMap((ColumnDefect(index=LINE),))
+    clean = cfa_frame(SIZE, SIZE, level=LOW, seed=13)
+    hot = inject_hot(clean, defects.mask(SIZE, SIZE))
+    after = clean.data.copy()
+    after[: SIZE // 2, LINE] = hot.data[: SIZE // 2, LINE]  # only the lower half was repaired
+    residuals = residual_defects(hot, clean.with_data(after), defects, StatisticalDefectDetector())
+    assert residuals
+    assert not any(r.improved for r in residuals)
+
+
+def test_pixel_outlier_against_its_eight_neighbours_is_not_improved() -> None:
+    from raw_pipeline.core.raw import PixelDefect  # noqa: PLC0415
+
+    defects = DefectMap((PixelDefect(x=LINE, y=LINE),))
+    clean = cfa_frame(SIZE, SIZE, level=LOW, seed=17)
+    before = clean.data.copy()
+    before[LINE, LINE - 2] = before[LINE, LINE + 2] = HIGH  # bright left/right neighbours only
+    after = before.copy()
+    after[LINE, LINE] = HIGH  # matches the left/right mean, an outlier against the eight neighbours
+    (residual,) = residual_defects(
+        clean.with_data(before), clean.with_data(after), defects, StatisticalDefectDetector()
+    )
+    assert not residual.improved

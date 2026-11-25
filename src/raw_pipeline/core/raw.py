@@ -199,8 +199,8 @@ class DefectResidual:
 
     Attributes:
         defect: The configured defect.
-        score_before: Median absolute difference (DN) of its photosites from their nearest same-colour
-            neighbours outside it, in the uncorrected frame.
+        score_before: Median absolute difference (DN) of its still-detected photosites from their nearest
+            same-colour neighbours outside it (across the line; the eight around a pixel), uncorrected.
         score_after: The same in the corrected frame.
     """
 

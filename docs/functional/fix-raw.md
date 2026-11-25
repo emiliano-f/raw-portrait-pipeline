@@ -176,8 +176,9 @@ is reported as failed. The checks run on the finished file before it is moved in
 3. Every photosite inside it equals the corrector output.
 4. The defect detector (`defects.detection`) looks for each configured defect
    in the corrected frame. For a defect it still finds, the check compares how
-   far the defect's photosites are from their nearest same-colour neighbours
-   (median difference, in DN) before and after correction. It fails if that
+   far the photosites it still flags are from their nearest same-colour
+   neighbours (across the line; the eight around a pixel; median difference,
+   in DN) before and after correction. It fails if that
    did not drop (the line is unchanged, worse, or new). A defect that is still
    found but weaker is accepted with a warning, and the report says
    `passed_residual`: a thin scene stripe right next to the corrected column
