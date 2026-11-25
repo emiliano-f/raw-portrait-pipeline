@@ -28,6 +28,12 @@ logger = logging.getLogger(__name__)
 
 DEFECTS_FILE_SUFFIXES: Final = frozenset({".yaml", ".yml"})
 """Allowed ``--output`` suffixes, so a RAW input can never be the destination."""
+FIX_RAW_SUFFIXES: Final = frozenset({".cr2", ".dng"})
+"""Files ``fix-raw`` can take as input, depending on ``raw_export.source``."""
+FIX_RAW_HINTS: Final = {
+    ".dng": "to patch existing DNGs set raw_export.source: existing_dng and keep each original X.CR2 next to X.DNG",
+    ".cr2": "to convert CR2 files set raw_export.source: dnglab or adobe_converter",
+}
 
 
 class InputError(PipelineError):
@@ -253,11 +259,7 @@ def fix_raw(
     if report_path.exists() and not request.overwrite:
         msg = f"{report_path} already exists; pass --overwrite to replace it"
         raise InputError(msg)
-    inputs = svc.discover_files(request.input_dir, extensions=source.input_suffixes, exclude_dirs=(request.output_dir,))
-    if not inputs:
-        wanted = ", ".join(sorted(source.input_suffixes))
-        msg = f"no {wanted} files found in {request.input_dir} (raw_export.source: {source.name})"
-        raise InputError(msg)
+    inputs = _fix_raw_inputs(svc, source.name, source.input_suffixes, request)
     if any(report_path.name.lower() == f"{p.stem}.dng".lower() for p in inputs):
         msg = f"raw_export.report_filename {report_path.name!r} clashes with a corrected DNG name"
         raise InputError(msg)
@@ -277,6 +279,7 @@ def fix_raw(
         detection=config.defects.detection,
         preview=PreviewMode(config.raw_export.preview),
         verify=config.raw_export.verify,
+        keep_gps=config.export.keep_gps if config.raw_export.keep_gps is None else config.raw_export.keep_gps,
     )
     request.output_dir.mkdir(parents=True, exist_ok=True)
     records = tuple(
@@ -324,3 +327,33 @@ def _check_destination(output: Path | None, config_path: Path | None, *, overwri
             "or --output defects.yaml to write a separate file"
         )
         raise InputError(msg)
+
+
+def _fix_raw_inputs(svc: RuntimeServices, source: str, suffixes: frozenset[str], request: FixRawRequest) -> list[Path]:
+    """Inputs the source accepts; explain files of the other kind it would ignore."""
+    exclude = (request.output_dir,)
+    inputs = svc.discover_files(request.input_dir, extensions=suffixes, exclude_dirs=exclude)
+    other = FIX_RAW_SUFFIXES - suffixes
+    stems = {p.stem.lower() for p in inputs}
+    ignored = [
+        p
+        for p in svc.discover_files(request.input_dir, extensions=other, exclude_dirs=exclude)
+        if p.stem.lower() not in stems
+    ]
+    wanted = ", ".join(sorted(suffixes))
+    hint = "; ".join(FIX_RAW_HINTS[s] for s in sorted({p.suffix.lower() for p in ignored}) if s in FIX_RAW_HINTS)
+    if not inputs:
+        msg = f"no {wanted} files found in {request.input_dir} (raw_export.source: {source} reads only {wanted})"
+        if ignored:
+            msg += f"; {len(ignored)} other RAW file(s) found: {hint}"
+        raise InputError(msg)
+    if ignored:
+        logger.warning(
+            "raw_export.source: %s reads only %s; skipping %d file(s) such as %s (%s)",
+            source,
+            wanted,
+            len(ignored),
+            ignored[0].name,
+            hint,
+        )
+    return inputs

@@ -17,7 +17,7 @@ from raw_pipeline.core.raw import CFAFrame, ColumnDefect, Defect, DefectResidual
 from raw_pipeline.core.registry import BuildEnv
 from raw_pipeline.defects.directional import DirectionalCorrector
 from raw_pipeline.defects.null import NullDefectCorrector
-from raw_pipeline.io.dng.sources import ExistingDngSource
+from raw_pipeline.io.dng.sources import DnglabSource, ExistingDngSource
 from raw_pipeline.io.dng.tiff import read_raw
 from raw_pipeline.runtime.components import ComponentRegistries
 from raw_pipeline.runtime.services import RuntimeServices
@@ -60,10 +60,10 @@ def _hot_spec() -> DngSpec:
     return DngSpec(raw=raw)
 
 
-def _inputs(folder: Path, names: tuple[str, ...] = ("IMG_0001", "IMG_0002")) -> Path:
+def _inputs(folder: Path, names: tuple[str, ...] = ("IMG_0001", "IMG_0002"), *, gps: bool = False) -> Path:
     folder.mkdir()
     for name in names:
-        write_dng(folder / f"{name}.dng", _hot_spec())
+        write_dng(folder / f"{name}.dng", dataclasses.replace(_hot_spec(), gps=gps))
         (folder / f"{name}.CR2").write_bytes(b"cr2")
     return folder
 
@@ -89,6 +89,7 @@ def _registries() -> ComponentRegistries:
     regs.defect_correctors.register("directional")(DirectionalCorrector)
     regs.defect_correctors.register("none_real")(NullDefectCorrector)
     regs.dng_sources.register("existing_dng")(ExistingDngSource)
+    regs.dng_sources.register("dnglab_real")(DnglabSource)
     return regs
 
 
@@ -281,3 +282,60 @@ def test_weaker_residual_passes_with_warning(tmp_path: Path) -> None:
     assert (out / "IMG_0001.dng").exists()
     assert _report(out)[0]["verification"] == "passed_residual"
     assert "accepted as a residual" in text
+
+
+@pytest.mark.parametrize(
+    ("export_keep", "raw_keep", "expected"),
+    [(False, None, "stripped"), (True, None, "kept"), (True, False, "stripped"), (False, True, "kept")],
+)
+def test_keep_gps_inherits_export_setting(
+    tmp_path: Path, export_keep: bool, raw_keep: bool | None, expected: str
+) -> None:
+    import yaml  # noqa: PLC0415
+
+    src, out = _inputs(tmp_path / "in", ("IMG_0001",), gps=True), tmp_path / "out"
+    config = _config(tmp_path, keep_gps=raw_keep)
+    data = yaml.safe_load(config.read_text())
+    data["export"]["keep_gps"] = export_keep
+    config.write_text(yaml.safe_dump(data))
+    code, text = _run("fix-raw", src, out, "--config", config)
+    assert code == 0, text
+    assert _report(out)[0]["gps"] == expected
+
+
+def test_converter_source_with_only_dngs_explains_existing_dng(tmp_path: Path) -> None:
+    src = tmp_path / "in"
+    src.mkdir()
+    write_dng(src / "IMG_0001.dng", _hot_spec())
+    code, text = _run("fix-raw", src, tmp_path / "out", "--config", _config(tmp_path, source="dnglab_real"))
+    assert code == 2
+    assert "reads only .cr2" in text
+    assert "raw_export.source: existing_dng" in text
+
+
+def test_existing_dng_with_only_cr2s_explains_converters(tmp_path: Path) -> None:
+    src = tmp_path / "in"
+    src.mkdir()
+    (src / "IMG_0001.CR2").write_bytes(b"cr2")
+    code, text = _run("fix-raw", src, tmp_path / "out", "--config", _config(tmp_path))
+    assert code == 2
+    assert "reads only .dng" in text
+    assert "dnglab or adobe_converter" in text
+
+
+def test_existing_dng_without_its_cr2_fails_clearly(tmp_path: Path) -> None:
+    src, out = _inputs(tmp_path / "in", ("IMG_0001", "IMG_0002")), tmp_path / "out"
+    (src / "IMG_0002.CR2").unlink()
+    code, _ = _run("fix-raw", src, out, "--config", _config(tmp_path))
+    assert code == 1
+    rows = {r["input_file"].rsplit("/", 1)[-1]: r for r in _report(out)}
+    assert rows["IMG_0001.dng"]["status"] == "ok"
+    assert "original IMG_0002.CR2 not found next to it" in rows["IMG_0002.dng"]["error"]
+
+
+def test_unmatched_other_raws_are_skipped_with_a_warning(tmp_path: Path) -> None:
+    src, out = _inputs(tmp_path / "in", ("IMG_0001",)), tmp_path / "out"
+    (src / "IMG_0009.CR2").write_bytes(b"cr2")
+    code, text = _run("fix-raw", src, out, "--config", _config(tmp_path))
+    assert code == 0
+    assert "skipping 1 file(s) such as IMG_0009.CR2" in text

@@ -211,5 +211,8 @@ def reference_raw(dng: Path) -> Path:
     for candidate in sorted(dng.parent.iterdir()):
         if candidate.stem == dng.stem and candidate.suffix.lower() in CR2_SUFFIXES and candidate.is_file():
             return candidate
-    msg = f"{dng.name}: original {dng.stem}.CR2 not found next to it (needed to map the defect coordinates)"
+    msg = (
+        f"{dng.name}: original {dng.stem}.CR2 not found next to it; raw_export.source: existing_dng needs it "
+        "to map the defect coordinates (copy the CR2 beside the DNG, or run a converter source on the CR2)"
+    )
     raise CoordinateMappingError(msg)
