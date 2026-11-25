@@ -37,6 +37,7 @@ raw_export:
   source: dnglab
   preview: regenerate
   verify: true
+  # keep_gps: unset = same as export.keep_gps (GPS stripped by default)
 ```
 
 ## Converters
@@ -106,6 +107,34 @@ to it: the defect map is in CR2 coordinates, and `fix-raw` only writes when it
 can match the DNG photosites to the CR2 exactly. The DNG must be uncompressed,
 mosaic (not linear) and 16-bit; otherwise it is rejected with the reason.
 
+## Input rules
+
+| `raw_export.source` | Reads | Ignores |
+| --- | --- | --- |
+| `dnglab`, `adobe_converter` | `.CR2` | `.DNG` |
+| `existing_dng` | `.DNG`, each with its `.CR2` of the same name beside it | `.CR2` without a DNG of the same name |
+
+Both rules fail with a message that says what to do:
+
+- A folder with nothing the source reads stops before any work (exit code `2`),
+  for example
+  `no .cr2 files found in in/ (raw_export.source: dnglab reads only .cr2); 3 other RAW file(s) found: to patch existing DNGs set raw_export.source: existing_dng and keep each original X.CR2 next to X.DNG`.
+  When some files are read and others are not, the run goes on and a warning
+  names the skipped files.
+- With `existing_dng`, a DNG whose CR2 is missing fails on its own (the rest of
+  the batch continues; exit code `1`) with
+  `IMG_0002.DNG: original IMG_0002.CR2 not found next to it; raw_export.source: existing_dng needs it to map the defect coordinates (copy the CR2 beside the DNG, or run a converter source on the CR2)`.
+
+### Future work: DNG-only input
+
+The CR2 is needed only to find where the CR2 visible area (the coordinates of
+`defects.map`) sits inside the DNG raw image. That offset is the same for
+every file of one camera model and converter (for the EOS 800D with DNGLab it
+is `(36, 264)`), but the DNG tags alone do not give it (`ActiveArea` is 2 rows
+off). A per-camera offset calibration, measured once from a CR2/DNG pair and
+stored with the defect map, would let `existing_dng` work on DNGs without their
+CR2.
+
 ## What changes in the DNG
 
 | Part | After `fix-raw` |
@@ -113,8 +142,15 @@ mosaic (not linear) and 16-bit; otherwise it is rejected with the reason.
 | Raw photosites outside the defect map | Byte-identical to the converter's DNG |
 | Raw photosites in the defect map | Corrector output (same as `process`) |
 | EXIF, camera profiles, colour matrices, white balance, crop, orientation | Unchanged (the TIFF/DNG structure is not rebuilt) |
+| GPS (EXIF GPS IFD and XMP `exif:GPS*` fields) | Stripped, unless `raw_export.keep_gps` |
 | `RawImageDigest` / `NewRawImageDigest` | Recomputed, or removed when they cannot be reproduced (see the report) |
 | Embedded previews/thumbnails | Per `raw_export.preview` |
+
+`raw_export.keep_gps` (default unset, which means "same as
+`export.keep_gps`", itself off by default): corrected DNGs drop GPS like the
+JPG/TIFF exports do. The GPS directory is zeroed and unlinked from IFD0 and the
+XMP GPS fields are blanked in place; the raw image data and its digests are not
+touched. Set `raw_export.keep_gps: true` to keep the location in the DNG only.
 
 `raw_export.preview`:
 
@@ -135,8 +171,13 @@ is reported as failed. The checks run on the finished file before it is moved in
 1. It opens with LibRaw (rawpy).
 2. Every photosite outside the defect mask equals the base DNG.
 3. Every photosite inside it equals the corrector output.
-4. The defect detector (`defects.detection`) no longer finds the configured
-   defects in the corrected frame.
+4. The defect detector (`defects.detection`) scores each configured defect in
+   the base frame and in the corrected one. A defect it still finds fails the
+   check if its score did not drop (the line is unchanged, or new). A defect
+   that is still found but weaker is accepted with a warning, and the report
+   says `passed_residual`: a thin scene stripe right next to the corrected
+   column (a cable, a hair) can keep a weak detector score after a correct
+   repair, so a fixed threshold would reject good DNGs.
 5. The DNG still has its raw image where it was (same layout, same CFA).
 6. Inputs (CR2 and, for `existing_dng`, the DNG) have the same SHA-256 as before.
 
@@ -152,7 +193,8 @@ is reported as failed. The checks run on the finished file before it is moved in
 | `offset_y`, `offset_x` | Where the CR2 visible area sits in the DNG raw image |
 | `mapping_method` | How it was found: `active_area`, `default_crop`, `origin` or `search` |
 | `defect_method`, `defects_configured`, `corrected_pixels` | Corrector, map entries, photosites changed |
-| `passthrough` | `True` when nothing changed (method `none` or empty map); the DNG is then byte-identical to the base and `preview` is `keep` |
+| `passthrough` | `True` when nothing changed (method `none` or empty map); the raw data and previews are then those of the base (`preview` is `keep`), and the DNG is byte-identical to it unless GPS was stripped |
 | `digest` | `absent`, `unchanged`, `recomputed` or `removed` |
 | `preview` | Preview handling actually applied |
-| `verification` | `passed` or `skipped` |
+| `gps` | `absent`, `kept` or `stripped` |
+| `verification` | `passed`, `passed_residual` (see [Verification](#verification)) or `skipped` |

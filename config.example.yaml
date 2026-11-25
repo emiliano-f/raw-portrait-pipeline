@@ -31,6 +31,7 @@ raw_export:                  # `raw-pipeline fix-raw`: corrected DNGs
     timeout_s: 120.0
   preview: regenerate        # keep | regenerate | remove
   verify: true
+  keep_gps: null             # null = same as export.keep_gps; true keeps GPS in the DNG
   report_filename: fix_raw_report.csv
 
 meter:

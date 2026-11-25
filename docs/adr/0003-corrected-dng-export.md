@@ -40,8 +40,9 @@ profiles, EXIF and maker data, which converters already get right.
    `remove`. The applied handling is reported per image.
 7. **Verification by default.** After writing: LibRaw opens it, untouched
    photosites are byte-identical, corrected ones equal the corrector output,
-   the detector no longer finds the configured defects, the layout is intact,
-   inputs are unchanged. A failing output is deleted.
+   each configured defect's detector score dropped (a weaker residual next to
+   a thin scene stripe passes with a warning), the layout is intact, inputs
+   are unchanged. A failing output is never published.
 
 ## Consequences
 
