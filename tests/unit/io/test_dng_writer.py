@@ -298,6 +298,14 @@ def test_keep_gps_copies_gps_metadata(tmp_path: Path) -> None:
     assert GPS_LATITUDE in result.path.read_bytes()
 
 
+def test_xmp_gps_under_another_prefix_is_stripped(tmp_path: Path) -> None:
+    xmp = b'<rdf:Description xmlns:ns1="http://ns.adobe.com/exif/1.0/" ns1:GPSLatitude="34,36.0S"/>'
+    base = write_dng(tmp_path / "base.dng", DngSpec(xmp=xmp))
+    result = WRITER.write(base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False)
+    assert result.gps is GpsHandling.STRIPPED
+    assert b"GPS" not in _gps_tags(result.path)[1]
+
+
 @pytest.mark.parametrize("keep", [False, True])
 def test_no_gps_is_reported_absent(tmp_path: Path, keep: bool) -> None:
     base = write_dng(tmp_path / "base.dng", DngSpec(xmp=b'<x:xmpmeta xmp:Rating="1"/>'))

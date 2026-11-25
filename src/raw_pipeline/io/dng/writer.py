@@ -60,11 +60,12 @@ FIELD_TYPE_SIZES: Final = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4,
 IFD_HEADER_BYTES: Final = 2
 NEXT_IFD_BYTES: Final = 4
 XMP_GPS_PATTERNS: Final = (
-    re.compile(rb"<((?:exif|exifEX):GPS\w*)\b[^>]*>.*?</\1\s*>", re.DOTALL),
-    re.compile(rb"<(?:exif|exifEX):GPS\w*\b[^>]*/>"),
-    re.compile(rb"\s(?:exif|exifEX):GPS\w*\s*=\s*(?:\"[^\"]*\"|'[^']*')"),
+    re.compile(rb"<([A-Za-z_][\\w.-]*:GPS\w*)\b[^>]*>.*?</\1\s*>", re.DOTALL),
+    re.compile(rb"<[A-Za-z_][\\w.-]*:GPS\w*\b[^>]*/>"),
+    re.compile(rb"\s[A-Za-z_][\\w.-]*:GPS\w*\s*=\s*(?:\"[^\"]*\"|'[^']*')"),
 )
-"""XMP GPS properties (elements and attributes); blanked with spaces so the packet keeps its length."""
+"""XMP GPS properties under any namespace prefix (elements and attributes); blanked with spaces so the
+packet keeps its length."""
 DIGESTS: Final = ((RAW_IMAGE_DIGEST, legacy_raw_digest), (NEW_RAW_IMAGE_DIGEST, new_raw_digest))
 
 Renderer = Callable[[Path], NDArray[np.uint8]]
