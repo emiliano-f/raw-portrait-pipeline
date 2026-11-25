@@ -4,6 +4,11 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 
 ## [Unreleased]
 
+### Added
+
+- `raw-pipeline fix-raw input/ output/`: writes `<name>.dng` with the `defects.map` photosites corrected by the configured `defects.method`, to keep editing as RAW. The base DNG comes from a pluggable `DngSource` (`dnglab` default, `adobe_converter`, `existing_dng`); only changed photosite bytes are patched, digests are recomputed or removed, previews regenerated/kept/removed, each output verified, and `fix_raw_report.csv` records every image (ADR 0003).
+- `raw_export` config section (`source`, `converter.executable/args/timeout_s`, `preview`, `verify`, `report_filename`).
+
 ## [0.2.0] - 2026-11-24
 
 ### Added

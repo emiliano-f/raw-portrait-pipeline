@@ -119,6 +119,13 @@ tone in the CSV; it never changes pixels.
 
 See [QA and privacy](qa-and-privacy.md).
 
+## Corrected RAW export (not a stage)
+
+`raw-pipeline fix-raw` writes DNGs with the defect map corrected on the raw
+data, outside the stage pipeline. The base DNG comes from one of the
+`dng_sources`: `dnglab` (default), `adobe_converter` or `existing_dng`. See
+[Corrected RAW (fix-raw)](fix-raw.md).
+
 ## All registered components
 
 Generated from the component registries at docs build time (built-in components

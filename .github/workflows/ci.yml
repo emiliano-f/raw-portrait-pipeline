@@ -23,3 +23,25 @@ jobs:
       - run: uv run mkdocs build --strict  # fails on broken links and on drift in the generated docs sections
         env:
           NO_MKDOCS_2_WARNING: "1"
+
+  fix-raw:
+    # End-to-end fix-raw on a public EOS 800D sample with DNGLab (installed here, never by the application).
+    runs-on: ubuntu-latest
+    env:
+      DNGLAB_VERSION: "0.8.0"
+      RAW_PIPELINE_SAMPLES: ${{ github.workspace }}/samples
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libegl1 libgles2
+      - run: |
+          curl -sSLf -o dnglab.deb "https://github.com/dnglab/dnglab/releases/download/v${DNGLAB_VERSION}/dnglab_${DNGLAB_VERSION}-1_amd64.deb"
+          sudo apt-get install -y ./dnglab.deb
+          dnglab --version
+      - run: |
+          mkdir -p samples
+          curl -sSLf -o samples/IMG_3378.CR2 "https://raw.pixls.us/data/Canon/EOS%20800D/IMG_3378.CR2"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run pytest -m slow tests/integration/test_fix_raw_samples.py -v

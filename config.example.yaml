@@ -23,6 +23,16 @@ defects:                     # raw-level correction, BEFORE demosaicing
     min_frame_fraction: 0.8
     max_pixel_defects: 500
 
+raw_export:                  # `raw-pipeline fix-raw`: corrected DNGs
+  source: dnglab             # dnglab | adobe_converter | existing_dng
+  converter:
+    executable: null         # null = look up dnglab on PATH; required for adobe_converter
+    args: []                 # extra flags; required format flags are added by the code
+    timeout_s: 120.0
+  preview: regenerate        # keep | regenerate | remove
+  verify: true
+  report_filename: fix_raw_report.csv
+
 meter:
   strategy: face_weighted
   detector: mediapipe

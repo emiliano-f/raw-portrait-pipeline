@@ -34,6 +34,7 @@ nav:
       - Configuration: functional/configuration.md
       - Stages: functional/stages.md
       - QA and privacy: functional/qa-and-privacy.md
+      - Corrected RAW (fix-raw): functional/fix-raw.md
       - Troubleshooting: functional/troubleshooting.md
   - Contributor guide:
       - Architecture: technical/architecture.md
@@ -44,6 +45,7 @@ nav:
       - Components:
           - Decode and IO: technical/components/decode-io.md
           - Defects: technical/components/defects.md
+          - DNG export: technical/components/dng.md
           - Detection and metering: technical/components/detection-metering.md
           - Tone and retouch: technical/components/tone-retouch.md
           - Export and report: technical/components/export-report.md
@@ -64,5 +66,7 @@ nav:
   - Decisions:
       - ADR 0001 Architecture and core contracts: adr/0001-architecture-and-core-contracts.md
       - ADR 0002 Raw-level defect correction: adr/0002-raw-level-defect-correction.md
+      - ADR 0003 Corrected DNG export: adr/0003-corrected-dng-export.md
   - Plan:
       - Initial build: plan/initial-build.md
+      - fix-raw: plan/fix-raw.md
