@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import struct
 from pathlib import Path
 
 import numpy as np
 import pytest
 import rawpy
 
-from raw_pipeline.core.dng import DigestHandling, PreviewMode, RawPatch
+from raw_pipeline.core.dng import DigestHandling, GpsHandling, PreviewMode, RawPatch
 from raw_pipeline.core.errors import DngFormatError, OutputExistsError
 from raw_pipeline.io.dng.digest import legacy_raw_digest, new_raw_digest
 from raw_pipeline.io.dng.tiff import NEW_RAW_IMAGE_DIGEST, RAW_IMAGE_DIGEST, SUB_IFDS, read_layout, read_raw
@@ -237,3 +238,70 @@ def test_render_failure_is_a_dng_error(tmp_path: Path) -> None:
     junk.write_bytes(b"II*\x00junk")
     with pytest.raises(DngFormatError, match="preview"):
         render_preview(junk)
+
+
+XMP_WITH_GPS = (
+    b'<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+    b'<rdf:Description xmlns:exif="http://ns.adobe.com/exif/1.0/" xmlns:xmp="http://ns.adobe.com/xap/1.0/"'
+    b' exif:GPSLatitude="34,36.0S" xmp:Rating="3">'
+    b"<exif:GPSLongitude>58,24.0W</exif:GPSLongitude><exif:GPSVersionID/>"
+    b"</rdf:Description></rdf:RDF></x:xmpmeta>"
+)
+GPS_LATITUDE = struct.pack("<6I", 34, 1, 36, 1, 7, 1)
+
+
+def _gps_tags(path: Path) -> tuple[bool, bytes]:
+    import tifffile  # noqa: PLC0415
+
+    with tifffile.TiffFile(path) as tif:
+        tags = tif.pages.first.tags
+        return 34853 in tags, bytes(tags[700].value) if 700 in tags else b""
+
+
+@pytest.mark.parametrize("empty_patch", [False, True])
+def test_gps_is_stripped_without_touching_raw_or_digests(tmp_path: Path, empty_patch: bool) -> None:
+    spec = DngSpec(gps=True, xmp=XMP_WITH_GPS, digests="valid")
+    base = write_dng(tmp_path / "base.dng", spec)
+    assert GPS_LATITUDE in base.read_bytes()
+    patch = (
+        RawPatch(np.zeros(0, np.intp), np.zeros(0, np.intp), np.zeros(0, np.uint16)) if empty_patch else _column_patch()
+    )
+    result = WRITER.write(base, tmp_path / "o.dng", patch, preview=PreviewMode.KEEP, overwrite=False)
+    assert result.gps is GpsHandling.STRIPPED
+    data = result.path.read_bytes()
+    has_gps, xmp = _gps_tags(result.path)
+    assert not has_gps
+    assert GPS_LATITUDE not in data
+    assert b"GPS" not in xmp
+    assert b'xmp:Rating="3"' in xmp
+    assert len(xmp) == len(XMP_WITH_GPS)
+    expected = spec.raw.copy()
+    expected[patch.ys, patch.xs] = patch.values
+    np.testing.assert_array_equal(read_raw(result.path).data, expected)
+    layout = read_layout(result.path)
+    assert bytes(layout.ifd0.entries[RAW_IMAGE_DIGEST].value) == legacy_raw_digest(expected)
+    assert bytes(layout.ifd0.entries[NEW_RAW_IMAGE_DIGEST].value) == new_raw_digest(expected)
+    assert result.digest is (DigestHandling.UNCHANGED if empty_patch else DigestHandling.RECOMPUTED)
+    with rawpy.imread(str(result.path)) as raw:
+        assert raw.raw_image.shape == spec.raw.shape
+
+
+def test_keep_gps_copies_gps_metadata(tmp_path: Path) -> None:
+    base = write_dng(tmp_path / "base.dng", DngSpec(gps=True, xmp=XMP_WITH_GPS))
+    result = WRITER.write(
+        base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False, keep_gps=True
+    )
+    assert result.gps is GpsHandling.KEPT
+    has_gps, xmp = _gps_tags(result.path)
+    assert has_gps
+    assert xmp == XMP_WITH_GPS
+    assert GPS_LATITUDE in result.path.read_bytes()
+
+
+@pytest.mark.parametrize("keep", [False, True])
+def test_no_gps_is_reported_absent(tmp_path: Path, keep: bool) -> None:
+    base = write_dng(tmp_path / "base.dng", DngSpec(xmp=b'<x:xmpmeta xmp:Rating="1"/>'))
+    result = WRITER.write(
+        base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False, keep_gps=keep
+    )
+    assert result.gps is GpsHandling.ABSENT

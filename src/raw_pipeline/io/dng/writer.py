@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import struct
 import tempfile
@@ -15,7 +16,7 @@ from typing import BinaryIO, Final
 import numpy as np
 from numpy.typing import NDArray
 
-from raw_pipeline.core.dng import DigestHandling, DngRawImage, DngWriteResult, PreviewMode, RawPatch
+from raw_pipeline.core.dng import DigestHandling, DngRawImage, DngWriteResult, GpsHandling, PreviewMode, RawPatch
 from raw_pipeline.core.errors import DngFormatError, OutputExistsError
 from raw_pipeline.io.dng import preview as previews
 from raw_pipeline.io.dng.digest import legacy_raw_digest, new_raw_digest
@@ -23,6 +24,7 @@ from raw_pipeline.io.dng.tiff import (
     BITS_PER_SAMPLE,
     COMPRESSION_NONE,
     ENTRY_SIZE,
+    GPS_INFO,
     NEW_RAW_IMAGE_DIGEST,
     PLANAR_CONFIGURATION,
     RAW_IMAGE_DIGEST,
@@ -31,6 +33,7 @@ from raw_pipeline.io.dng.tiff import (
     STRIP_OFFSETS,
     SUB_IFDS,
     TILE_OFFSETS,
+    XMP_PACKET,
     DngLayout,
     Entry,
     Ifd,
@@ -52,6 +55,16 @@ TYPE_SIZES: Final = {1: 1, 3: 2, 4: 4, 7: 1, 13: 4}
 """Bytes per value of the TIFF field types edited here."""
 TYPE_FORMATS: Final = {1: "B", 3: "H", 4: "I", 7: "B", 13: "I"}
 LONG_TYPES: Final = frozenset({4, 13})
+FIELD_TYPE_SIZES: Final = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4, 10: 8, 11: 4, 12: 8, 13: 4}
+"""Bytes per value of every classic-TIFF field type (to find out-of-line GPS values)."""
+IFD_HEADER_BYTES: Final = 2
+NEXT_IFD_BYTES: Final = 4
+XMP_GPS_PATTERNS: Final = (
+    re.compile(rb"<((?:exif|exifEX):GPS\w*)\b[^>]*>.*?</\1\s*>", re.DOTALL),
+    re.compile(rb"<(?:exif|exifEX):GPS\w*\b[^>]*/>"),
+    re.compile(rb"\s(?:exif|exifEX):GPS\w*\s*=\s*(?:\"[^\"]*\"|'[^']*')"),
+)
+"""XMP GPS properties (elements and attributes); blanked with spaces so the packet keeps its length."""
 DIGESTS: Final = ((RAW_IMAGE_DIGEST, legacy_raw_digest), (NEW_RAW_IMAGE_DIGEST, new_raw_digest))
 
 Renderer = Callable[[Path], NDArray[np.uint8]]
@@ -187,6 +200,7 @@ class TiffDngRawWriter:
         preview: PreviewMode,
         overwrite: bool,
         check: Callable[[Path], None] | None = None,
+        keep_gps: bool = False,
     ) -> DngWriteResult:
         """See :meth:`~raw_pipeline.core.protocols.DngRawWriter.write`."""
         layout = read_layout(base)
@@ -206,6 +220,7 @@ class TiffDngRawWriter:
                 digest = self._digests(editor, layout, base, patch)
                 fh.flush()
                 applied = self._previews(editor, fh, layout, tmp, preview) if len(patch) else PreviewMode.KEEP
+                gps = _gps(editor, fh, layout, keep=keep_gps)
                 fh.flush()
                 os.fsync(fh.fileno())
             if check is not None:
@@ -214,7 +229,7 @@ class TiffDngRawWriter:
         except BaseException:
             tmp.unlink(missing_ok=True)
             raise
-        return DngWriteResult(destination, written, digest, applied)
+        return DngWriteResult(destination, written, digest, applied, gps)
 
     @staticmethod
     def _digests(editor: _Editor, layout: DngLayout, base: Path, patch: RawPatch) -> DigestHandling:
@@ -294,3 +309,49 @@ def _publish(tmp: Path, destination: Path, *, overwrite: bool) -> None:
         tmp.replace(destination)
         return
     tmp.unlink()
+
+
+def _gps(editor: _Editor, fh: BinaryIO, layout: DngLayout, *, keep: bool) -> GpsHandling:
+    """Strip the GPS IFD and XMP GPS fields of IFD0 in place unless ``keep``; report what was there."""
+    entry = layout.ifd0.entries.get(GPS_INFO)
+    xmp = layout.ifd0.entries.get(XMP_PACKET)
+    packet = b""
+    if xmp is not None and xmp.count > INLINE_BYTES:
+        fh.seek(xmp.value_offset)
+        packet = fh.read(xmp.count)
+    blanked = packet
+    for pattern in XMP_GPS_PATTERNS:
+        blanked = pattern.sub(lambda m: b" " * len(m.group(0)), blanked)
+    if entry is None and blanked == packet:
+        return GpsHandling.ABSENT
+    if keep:
+        return GpsHandling.KEPT
+    if blanked != packet and xmp is not None:
+        editor.write_at(xmp.value_offset, blanked)
+    if entry is not None:
+        for offset, count in _ifd_segments(fh, layout.byteorder, entry):
+            editor.zero(offset, count)
+        editor.remove_entries(layout.ifd0, {GPS_INFO})
+    return GpsHandling.STRIPPED
+
+
+def _ifd_segments(fh: BinaryIO, byteorder: str, pointer: Entry) -> list[tuple[int, int]]:
+    """``(offset, bytes)`` of the IFD ``pointer`` points to: its entry table and out-of-line values."""
+    size = fh.seek(0, os.SEEK_END)
+    fh.seek(pointer.entry_offset + 8)
+    (start,) = struct.unpack(f"{byteorder}I", fh.read(INLINE_BYTES))
+    if start + IFD_HEADER_BYTES > size:
+        return []
+    fh.seek(start)
+    (count,) = struct.unpack(f"{byteorder}H", fh.read(IFD_HEADER_BYTES))
+    table = fh.read(count * ENTRY_SIZE)
+    segments = [(start, min(IFD_HEADER_BYTES + count * ENTRY_SIZE + NEXT_IFD_BYTES, size - start))]
+    for i in range(len(table) // ENTRY_SIZE):
+        raw = table[i * ENTRY_SIZE : (i + 1) * ENTRY_SIZE]
+        _, dtype, n = struct.unpack(f"{byteorder}HHI", raw[:8])
+        nbytes = FIELD_TYPE_SIZES.get(dtype, 1) * n
+        if nbytes > INLINE_BYTES:
+            (offset,) = struct.unpack(f"{byteorder}I", raw[8:])
+            if offset + nbytes <= size:
+                segments.append((offset, nbytes))
+    return segments

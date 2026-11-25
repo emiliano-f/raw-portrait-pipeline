@@ -50,6 +50,7 @@ class FixRawRecord:
     corrected_pixels: int = 0
     passthrough: bool = False
     digest: str = ""
+    gps: str = ""
     preview: str = ""
     verification: str = ""
     error: str = ""
@@ -98,6 +99,7 @@ class RawExportService:
         detection: ``defects.detection`` settings for that scoring.
         preview: Preview handling.
         verify: Run the post-write checks.
+        keep_gps: Copy GPS metadata into the output (stripped otherwise).
     """
 
     def __init__(
@@ -113,6 +115,7 @@ class RawExportService:
         detection: DefectDetectionConfig,
         preview: PreviewMode = PreviewMode.REGENERATE,
         verify: bool = True,
+        keep_gps: bool = False,
     ) -> None:
         self._decoder = decoder
         self._source = source
@@ -121,6 +124,7 @@ class RawExportService:
         self._defects = defects
         self._placement = placement
         self._remaining = remaining_defects
+        self._keep_gps = keep_gps
         self._detection = detection
         self._preview = preview
         self._verify = verify
@@ -168,8 +172,15 @@ class RawExportService:
                 preview=self._preview,
                 overwrite=overwrite,
                 check=(lambda out: residuals.extend(self._check(fixed, out, hashes))) if self._verify else None,
+                keep_gps=self._keep_gps,
             )
-            record = _with(record, output_file=str(result.path), digest=str(result.digest), preview=str(result.preview))
+            record = _with(
+                record,
+                output_file=str(result.path),
+                digest=str(result.digest),
+                gps=str(result.gps),
+                preview=str(result.preview),
+            )
             verification = (PASSED_RESIDUAL if residuals else PASSED) if self._verify else SKIPPED
         if record.passthrough:
             logger.info("%s: passthrough (no photosite changed)", path.name)

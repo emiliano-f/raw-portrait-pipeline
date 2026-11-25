@@ -146,12 +146,14 @@ class DngRawWriter(Protocol):
         preview: PreviewMode,
         overwrite: bool,
         check: Callable[[Path], None] | None = None,
+        keep_gps: bool = False,
     ) -> DngWriteResult:
         """Copy ``base`` to ``destination`` and overwrite only the photosites of ``patch``.
 
         The TIFF/DNG structure is kept; raw image digests are recomputed or
         removed and previews handled according to ``preview``. An empty patch
-        leaves the file byte-identical (previews are not touched). ``check`` is
+        leaves the raw data and previews untouched. GPS metadata is stripped
+        unless ``keep_gps``; that never changes the raw data or its digests. ``check`` is
         called on the finished file before it is published; if it raises,
         nothing is published and an existing ``destination`` is kept.
 

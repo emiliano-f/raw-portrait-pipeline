@@ -269,6 +269,11 @@ class RawExportConfig(_Section):
         "corrected CFA, or remove them (the IFD0 thumbnail is blanked to neutral grey).",
     )
     verify: bool = Field(default=True, description="Check every written DNG (see the fix-raw guide).")
+    keep_gps: bool | None = Field(
+        default=None,
+        description="Copy GPS metadata (EXIF GPS IFD, XMP exif:GPS fields) into the corrected DNG. "
+        "Unset: same as export.keep_gps (off by default, so GPS is stripped).",
+    )
     report_filename: str = Field(
         default="fix_raw_report.csv", description="CSV report file name inside the output directory."
     )

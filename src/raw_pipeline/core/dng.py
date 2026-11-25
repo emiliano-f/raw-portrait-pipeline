@@ -33,6 +33,14 @@ class DigestHandling(StrEnum):
     REMOVED = "removed"
 
 
+class GpsHandling(StrEnum):
+    """What happened to GPS metadata (the EXIF GPS IFD and XMP ``exif:GPS*`` fields)."""
+
+    ABSENT = "absent"
+    KEPT = "kept"
+    STRIPPED = "stripped"
+
+
 @dataclass(frozen=True)
 class BaseDng:
     """The unmodified DNG a source produced for one input.
@@ -117,9 +125,11 @@ class DngWriteResult:
         photosites_written: Samples overwritten in the raw image data.
         digest: Handling of the raw image digests.
         preview: Preview handling actually applied.
+        gps: Handling of GPS metadata.
     """
 
     path: Path
     photosites_written: int
     digest: DigestHandling
     preview: PreviewMode
+    gps: GpsHandling = GpsHandling.ABSENT

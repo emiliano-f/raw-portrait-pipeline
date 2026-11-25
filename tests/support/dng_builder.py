@@ -45,6 +45,9 @@ class DngSpec:
     digests: str | None = None
     """``None``, ``"valid"`` (SDK digests of ``raw``) or ``"stale"`` (wrong values)."""
     linearization: bool = False
+    gps: bool = False
+    """Add an EXIF GPS IFD (version, latitude ref and an out-of-line latitude) to IFD0."""
+    xmp: bytes | None = None
 
 
 class _Buffer:
@@ -156,7 +159,19 @@ def write_dng(path: Path, spec: DngSpec | None = None) -> Path:
         if s.digests == "stale":
             legacy, new = bytes(16), bytes(range(16))
         ifd0 += [(50858, BYTE, legacy), (51111, BYTE, new)]
+    ifd0 += _metadata(buf, s)
     first = buf.ifd(ifd0)
     buf.data[4:8] = struct.pack(f"{s.byteorder}I", first)
     path.write_bytes(bytes(buf.data))
     return path
+
+
+def _metadata(buf: _Buffer, s: DngSpec) -> list[tuple[int, int, list[int] | bytes]]:
+    """Optional GPS IFD pointer and XMP packet entries of IFD0."""
+    entries: list[tuple[int, int, list[int] | bytes]] = []
+    if s.gps:
+        gps_ifd = buf.ifd([(0, BYTE, b"\x02\x03\x00\x00"), (1, ASCII, b"S\0"), (2, RATIONAL, [34, 1, 36, 1, 7, 1])])
+        entries.append((34853, LONG, [gps_ifd]))
+    if s.xmp is not None:
+        entries.append((700, BYTE, s.xmp))
+    return entries
