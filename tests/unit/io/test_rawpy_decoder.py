@@ -23,10 +23,9 @@ from raw_pipeline.io.rawpy_decoder import (
     normalized_wb,
     sensor_to_image,
 )
+from tests.support.fixtures import DARK_FRAME
 from tests.support.synthetic import BLACK_LEVEL, RGGB, WHITE_LEVEL, cfa_frame
 
-FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
-SAMPLES = sorted(FIXTURES.glob("*.CR2"))
 WB = (2.0, 1.0, 1.5, 1.0)
 
 
@@ -220,9 +219,8 @@ def test_registered_and_built_from_config() -> None:
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(not SAMPLES, reason="no tests/fixtures/*.CR2")
 def test_real_cr2_round_trip_leaves_the_file_untouched() -> None:
-    path = SAMPLES[0]
+    path = DARK_FRAME
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     with RawpyDecoder().open(path) as h:
         cfa = h.read_cfa()
@@ -234,6 +232,6 @@ def test_real_cr2_round_trip_leaves_the_file_untouched() -> None:
     assert first.image.dtype == np.float32
     assert first.image.shape[2] == 3
     assert np.isfinite(first.image).all()
-    assert 0.0 < float(np.median(first.image)) < 1.0
+    assert 0.0 <= float(np.median(first.image)) < 1.0
     np.testing.assert_array_equal(first.image, again.image)
     assert hashlib.sha256(path.read_bytes()).hexdigest() == digest

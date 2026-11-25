@@ -12,7 +12,7 @@ from raw_pipeline.core.artifacts import EXPOSURE, FACES
 from raw_pipeline.core.context import ImageContext
 from raw_pipeline.core.registry import BuildEnv
 from raw_pipeline.runtime.components import load_components
-from tests.integration.conftest import SAMPLES_ENV, sample_files
+from tests.integration.conftest import FIXTURES_ENV, sample_files
 
 pytestmark = pytest.mark.slow
 
@@ -25,7 +25,7 @@ SAMPLES = sample_files()
 per_sample = pytest.mark.parametrize(
     "sample",
     [pytest.param(p, id=p.name) for p in SAMPLES]
-    or [pytest.param(None, marks=pytest.mark.skip(reason=f"no sample CR2 (set {SAMPLES_ENV})"))],
+    or [pytest.param(None, marks=pytest.mark.skip(reason=f"no portrait CR2s (set {FIXTURES_ENV})"))],
 )
 
 

@@ -12,6 +12,7 @@ dist/
 # Sample photos are personal data and never committed (repo is public).
 *.CR2
 *.cr2
+!tests/fixtures/dark/dark_iso400.CR2
 /input/
 /output/
 /samples/

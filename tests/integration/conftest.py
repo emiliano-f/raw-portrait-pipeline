@@ -1,8 +1,13 @@
-"""Sample discovery and shared CLI runs for the slow integration tests.
+"""Fixture discovery and shared CLI runs for the slow integration tests.
 
-Samples come from ``$RAW_PIPELINE_SAMPLES`` when set, else ``tests/fixtures/``.
-They are never committed (the repository is public); without any, every test
-here skips.
+Two kinds of fixtures:
+
+- :data:`DARK_FRAME`, a committed lens-cap-on EOS 800D CR2 with the sensor's
+  hot column (no personal data). Defect detection and ``fix-raw`` tests use it,
+  in CI too.
+- Real portraits, which are personal data and never committed: they are read
+  from the folder named by ``$RAW_PIPELINE_FIXTURES_DIR``. Tests that need them
+  skip when it is unset.
 """
 
 from __future__ import annotations
@@ -16,21 +21,21 @@ from pathlib import Path
 import pytest
 
 from raw_pipeline.cli import main
+from tests.support.fixtures import DARK_FRAME, FIXTURES_ENV
 
-FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures"
-SAMPLES_ENV = "RAW_PIPELINE_SAMPLES"
+__all__ = ["DARK_FRAME", "FIXTURES_ENV", "run_cli", "sample_files", "sha256"]
 
 
-def samples_dir() -> Path:
-    """Directory holding the sample CR2s."""
-    configured = os.environ.get(SAMPLES_ENV)
-    return Path(configured).expanduser().resolve() if configured else FIXTURES_DIR
+def samples_dir() -> Path | None:
+    """Local folder of real portrait CR2s, or ``None`` when ``$RAW_PIPELINE_FIXTURES_DIR`` is unset."""
+    configured = os.environ.get(FIXTURES_ENV)
+    return Path(configured).expanduser().resolve() if configured else None
 
 
 def sample_files() -> list[Path]:
-    """Sample CR2s (any case), sorted; empty when there are none."""
+    """Portrait CR2s (any case), sorted; empty when there are none."""
     directory = samples_dir()
-    if not directory.is_dir():
+    if directory is None or not directory.is_dir():
         return []
     return sorted(p for p in directory.iterdir() if p.is_file() and p.suffix.lower() == ".cr2")
 
@@ -53,12 +58,17 @@ def run_process(output_dir: Path, config: Path, *extra: str) -> int:
 
     The CLI reconfigures the root logger; it is restored so later tests still capture logs.
     """
+    return run_cli(
+        ["process", str(samples_dir()), str(output_dir), "--config", str(config), "--workers", "1", "-q", *extra]
+    )
+
+
+def run_cli(argv: list[str]) -> int:
+    """Run the CLI in-process, restoring the root logger it reconfigures."""
     root = logging.getLogger()
     level, handlers = root.level, root.handlers[:]
     try:
-        return main(
-            ["process", str(samples_dir()), str(output_dir), "--config", str(config), "--workers", "1", "-q", *extra]
-        )
+        return main(argv)
     finally:
         for handler in root.handlers[:]:
             if handler not in handlers:
@@ -72,7 +82,7 @@ def run_process(output_dir: Path, config: Path, *extra: str) -> int:
 def samples() -> list[Path]:
     found = sample_files()
     if not found:
-        pytest.skip(f"no sample CR2 in {samples_dir()} (set {SAMPLES_ENV} or add tests/fixtures/*.CR2)")
+        pytest.skip(f"no portrait CR2s: set {FIXTURES_ENV} to a local folder of them")
     return found
 
 
