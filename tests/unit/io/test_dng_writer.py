@@ -310,6 +310,15 @@ def test_self_closing_xmp_gps_element_does_not_swallow_later_metadata(tmp_path: 
     assert b"GPS" not in packet
 
 
+def test_xmp_gps_attribute_value_with_tag_delimiters_is_stripped(tmp_path: Path) -> None:
+    xmp = b'<rdf:Description><exif:GPSLatitude note="a/>b">34,36.0S</exif:GPSLatitude></rdf:Description>'
+    base = write_dng(tmp_path / "base.dng", DngSpec(xmp=xmp))
+    result = WRITER.write(base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False)
+    packet = _gps_tags(result.path)[1]
+    assert b"34,36.0S" not in packet
+    assert b"GPS" not in packet
+
+
 def test_embedded_original_refuses_gps_stripping(tmp_path: Path) -> None:
     base = write_dng(tmp_path / "base.dng", DngSpec(original_raw=b"CR2 with GPS" * 4))
     with pytest.raises(DngFormatError, match="OriginalRawFileData"):

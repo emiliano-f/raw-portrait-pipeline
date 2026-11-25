@@ -60,9 +60,11 @@ FIELD_TYPE_SIZES: Final = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4,
 """Bytes per value of every classic-TIFF field type (to find out-of-line GPS values)."""
 IFD_HEADER_BYTES: Final = 2
 NEXT_IFD_BYTES: Final = 4
+_XMP_ATTRS: Final = rb"""(?:[^>"']|"[^"]*"|'[^']*')*"""
+"""The rest of an XML start tag: quoted attribute values may contain ``>`` or ``/>``."""
 XMP_GPS_PATTERNS: Final = (
-    re.compile(rb"<([A-Za-z_][\w.-]*:GPS\w*)\b[^>]*(?<!/)>.*?</\1\s*>", re.DOTALL),
-    re.compile(rb"<[A-Za-z_][\w.-]*:GPS\w*\b[^>]*/>"),
+    re.compile(rb"<([A-Za-z_][\w.-]*:GPS\w*)\b" + _XMP_ATTRS + rb"(?<!/)>.*?</\1\s*>", re.DOTALL),
+    re.compile(rb"<[A-Za-z_][\w.-]*:GPS\w*\b" + _XMP_ATTRS + rb"/>"),
     re.compile(rb"\s[A-Za-z_][\w.-]*:GPS\w*\s*=\s*(?:\"[^\"]*\"|'[^']*')"),
 )
 """XMP GPS properties under any namespace prefix (elements and attributes); blanked with spaces so the
