@@ -201,3 +201,39 @@ def test_rawpy_opens_patched_real_layout(tmp_path: Path) -> None:
     with rawpy.imread(str(out.path)) as raw:
         assert raw.raw_image.shape == (64, 96)
         assert int(raw.raw_image[5, 10]) == 9
+
+
+def test_empty_patch_skips_preview_regeneration(tmp_path: Path) -> None:
+    base = write_dng(tmp_path / "base.dng")
+    empty = RawPatch(np.zeros(0, np.intp), np.zeros(0, np.intp), np.zeros(0, np.uint16))
+    result = WRITER.write(base, tmp_path / "o.dng", empty, preview=PreviewMode.REGENERATE, overwrite=False)
+    assert result.path.read_bytes() == base.read_bytes()
+    assert result.preview is PreviewMode.KEEP
+
+
+def test_failed_check_publishes_nothing(tmp_path: Path) -> None:
+    base = write_dng(tmp_path / "base.dng")
+    out = tmp_path / "o.dng"
+    out.write_bytes(b"previous")
+    checked: list[Path] = []
+
+    def check(path: Path) -> None:
+        checked.append(path)
+        assert read_raw(path).data[0, 10] == 9
+        raise DngFormatError("bad")
+
+    with pytest.raises(DngFormatError, match="bad"):
+        WRITER.write(base, out, _column_patch(), preview=PreviewMode.KEEP, overwrite=True, check=check)
+    assert out.read_bytes() == b"previous"
+    assert checked
+    assert checked[0] != out
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["base.dng", "o.dng"]
+
+
+def test_render_failure_is_a_dng_error(tmp_path: Path) -> None:
+    from raw_pipeline.io.dng.preview import render_preview  # noqa: PLC0415
+
+    junk = tmp_path / "junk.dng"
+    junk.write_bytes(b"II*\x00junk")
+    with pytest.raises(DngFormatError, match="preview"):
+        render_preview(junk)

@@ -15,6 +15,8 @@ import rawpy
 from numpy.typing import NDArray
 from PIL import Image
 
+from raw_pipeline.core.errors import DngFormatError
+
 PREVIEW_JPEG_QUALITY: Final = 90
 NEUTRAL_GREY: Final = 128
 """8-bit value of a removed (blanked) thumbnail."""
@@ -23,8 +25,12 @@ NO_FLIP: Final = 0
 
 def render_preview(path: Path) -> NDArray[np.uint8]:
     """Quick sRGB 8-bit development of the DNG at ``path`` (camera WB, half size, unrotated)."""
-    with rawpy.imread(str(path)) as raw:
-        rgb = raw.postprocess(use_camera_wb=True, half_size=True, user_flip=NO_FLIP, output_bps=8)
+    try:
+        with rawpy.imread(str(path)) as raw:
+            rgb = raw.postprocess(use_camera_wb=True, half_size=True, user_flip=NO_FLIP, output_bps=8)
+    except (rawpy.LibRawError, OSError) as exc:
+        msg = f"cannot render a preview of the patched DNG: {exc}"
+        raise DngFormatError(msg) from exc
     return np.asarray(rgb, dtype=np.uint8)
 
 

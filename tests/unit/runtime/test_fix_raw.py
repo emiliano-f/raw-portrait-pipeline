@@ -49,7 +49,7 @@ class DngReferenceDecoder:
     def read_cfa(self) -> CFAFrame:
         if self._path.read_bytes().startswith(b"NOMATCH"):
             return CFAFrame(raw_frame(40, 50, seed=9), ((0, 1), (3, 2)), "RGBG", (0,) * 4, 16383)
-        dng = self._path if self._path.suffix == ".dng" else self._path.with_suffix(".dng")
+        dng = self._path.with_suffix(".dng") if self._path.suffix.lower() == ".cr2" else self._path
         data = read_raw(dng).data[2:, 4:].copy()
         return CFAFrame(data, ((0, 1), (3, 2)), "RGBG", (0,) * 4, 16383)
 
@@ -140,7 +140,7 @@ def test_fix_raw_corrects_only_the_defect(tmp_path: Path) -> None:
         "passed",
         "False",
     )
-    assert out / "IMG_0001.dng" in DngReferenceDecoder.opened
+    assert any(p.parent == out and p.name.startswith(".IMG_0001.dng.") for p in DngReferenceDecoder.opened)
 
 
 @pytest.mark.parametrize(
@@ -223,3 +223,50 @@ def test_mapping_failure_writes_nothing(tmp_path: Path) -> None:
     (row,) = _report(out)
     assert row["status"] == "failed"
     assert row["mapping_method"] == ""
+
+
+def test_report_name_clashing_with_output_is_rejected(tmp_path: Path) -> None:
+    src = _inputs(tmp_path / "in", ("IMG_0001",))
+    code, text = _run("fix-raw", src, tmp_path / "out", "--config", _config(tmp_path, report_filename="img_0001.DNG"))
+    assert code == 2
+    assert "clashes" in text
+    assert not (tmp_path / "out").exists()
+
+
+def test_failed_verification_keeps_previous_output(tmp_path: Path) -> None:
+    src, out = _inputs(tmp_path / "in", ("IMG_0001",)), tmp_path / "out"
+    out.mkdir()
+    (out / "IMG_0001.dng").write_bytes(b"previous")
+    services = _services([ColumnDefect(index=10)])
+    code, _ = _run("fix-raw", src, out, "--config", _config(tmp_path), "--overwrite", services=services)
+    assert code == 1
+    assert (out / "IMG_0001.dng").read_bytes() == b"previous"
+    assert sorted(p.name for p in out.iterdir()) == ["IMG_0001.dng", "fix_raw_report.csv"]
+
+
+def test_symlinked_input_is_never_replaced(tmp_path: Path) -> None:
+    src, out = _inputs(tmp_path / "in", ("IMG_0001",)), tmp_path / "out"
+    out.mkdir()
+    (out / "IMG_0001.dng").symlink_to(src / "IMG_0001.dng")
+    before = _hashes(src)
+    code, _ = _run("fix-raw", src, out, "--config", _config(tmp_path), "--overwrite")
+    assert code == 1
+    assert _hashes(src) == before
+    assert (out / "IMG_0001.dng").is_symlink()
+    assert "inputs" in _report(out)[0]["error"]
+
+
+def test_method_none_ignores_out_of_frame_map(tmp_path: Path) -> None:
+    src, out = _inputs(tmp_path / "in", ("IMG_0001",)), tmp_path / "out"
+    config = _config(tmp_path, method="none_real", defects=[{"type": "column", "index": 5000}])
+    code, text = _run("fix-raw", src, out, "--config", config)
+    assert code == 0, text
+    assert (out / "IMG_0001.dng").read_bytes() == (src / "IMG_0001.dng").read_bytes()
+
+
+def test_passthrough_with_regenerate_is_byte_identical(tmp_path: Path) -> None:
+    src, out = _inputs(tmp_path / "in", ("IMG_0001",)), tmp_path / "out"
+    code, _ = _run("fix-raw", src, out, "--config", _config(tmp_path, defects=[], preview="regenerate"))
+    assert code == 0
+    assert (out / "IMG_0001.dng").read_bytes() == (src / "IMG_0001.dng").read_bytes()
+    assert _report(out)[0]["preview"] == "keep"

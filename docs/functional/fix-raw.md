@@ -88,12 +88,12 @@ uncompressed; the default is mosaic data without the original embedded).
 #!/bin/sh
 # adobe-dng-wine: run Adobe DNG Converter under Wine with Windows paths.
 exe="$HOME/.wine/drive_c/Program Files/Adobe/Adobe DNG Converter/Adobe DNG Converter.exe"
-args=""
-for a in "$@"; do
+for a do
+  shift
   case "$a" in /*) a=$(winepath -w "$a") ;; esac
-  args="$args \"$a\""
+  set -- "$@" "$a"
 done
-eval exec wine "\"$exe\"" $args
+exec wine "$exe" "$@"
 ```
 
 The Wine route is not tested in CI; DNGLab is the recommended converter on Linux.
@@ -129,7 +129,8 @@ mosaic (not linear) and 16-bit; otherwise it is rejected with the reason.
 ## Verification
 
 With `raw_export.verify: true` (default) every written DNG is checked; a DNG
-that fails is deleted and the image is reported as failed:
+that fails is never published (an earlier output stays in place) and the image
+is reported as failed. The checks run on the finished file before it is moved into place:
 
 1. It opens with LibRaw (rawpy).
 2. Every photosite outside the defect mask equals the base DNG.
@@ -151,7 +152,7 @@ that fails is deleted and the image is reported as failed:
 | `offset_y`, `offset_x` | Where the CR2 visible area sits in the DNG raw image |
 | `mapping_method` | How it was found: `active_area`, `default_crop`, `origin` or `search` |
 | `defect_method`, `defects_configured`, `corrected_pixels` | Corrector, map entries, photosites changed |
-| `passthrough` | `True` when nothing changed (method `none` or empty map); the DNG is then byte-identical to the base |
+| `passthrough` | `True` when nothing changed (method `none` or empty map); the DNG is then byte-identical to the base and `preview` is `keep` |
 | `digest` | `absent`, `unchanged`, `recomputed` or `removed` |
 | `preview` | Preview handling actually applied |
 | `verification` | `passed` or `skipped` |

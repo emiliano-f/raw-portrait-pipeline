@@ -179,7 +179,14 @@ class TiffDngRawWriter:
         return read_raw(path)
 
     def write(
-        self, base: Path, destination: Path, patch: RawPatch, *, preview: PreviewMode, overwrite: bool
+        self,
+        base: Path,
+        destination: Path,
+        patch: RawPatch,
+        *,
+        preview: PreviewMode,
+        overwrite: bool,
+        check: Callable[[Path], None] | None = None,
     ) -> DngWriteResult:
         """See :meth:`~raw_pipeline.core.protocols.DngRawWriter.write`."""
         layout = read_layout(base)
@@ -198,9 +205,11 @@ class TiffDngRawWriter:
                 written = _patch_raw(editor, layout, patch)
                 digest = self._digests(editor, layout, base, patch)
                 fh.flush()
-                applied = self._previews(editor, fh, layout, tmp, preview)
+                applied = self._previews(editor, fh, layout, tmp, preview) if len(patch) else PreviewMode.KEEP
                 fh.flush()
                 os.fsync(fh.fileno())
+            if check is not None:
+                check(tmp)
             _publish(tmp, destination, overwrite=overwrite)
         except BaseException:
             tmp.unlink(missing_ok=True)

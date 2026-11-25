@@ -258,6 +258,9 @@ def fix_raw(
         wanted = ", ".join(sorted(source.input_suffixes))
         msg = f"no {wanted} files found in {request.input_dir} (raw_export.source: {source.name})"
         raise InputError(msg)
+    if any(report_path.name.lower() == f"{p.stem}.dng".lower() for p in inputs):
+        msg = f"raw_export.report_filename {report_path.name!r} clashes with a corrected DNG name"
+        raise InputError(msg)
     duplicates = duplicate_output_stems(inputs)
     if duplicates:
         msg = "several inputs share an output name (rename them): " + "; ".join(duplicates)

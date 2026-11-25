@@ -18,7 +18,7 @@ from numpy.typing import NDArray
 
 from raw_pipeline.config.models import DefectDetectionConfig
 from raw_pipeline.core.dng import BaseDng, CFAOffset, DngRawImage, PreviewMode, RawPatch
-from raw_pipeline.core.errors import PipelineError, VerificationError
+from raw_pipeline.core.errors import OutputExistsError, PipelineError, VerificationError
 from raw_pipeline.core.protocols import DefectCorrector, DngRawWriter, DngSource, RawDecoder
 from raw_pipeline.core.raw import CFAFrame, DefectMap
 from raw_pipeline.runtime.services import RawPlacement, RemainingDefects
@@ -136,6 +136,9 @@ class RawExportService:
         with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as work:
             base = self._source.prepare(path, Path(work))
             protected = {path, base.reference} | ({base.path} if base.path == path else set())
+            if destination.exists() and any(destination.samefile(p) for p in protected):
+                msg = f"{destination} is one of the inputs; choose another output folder"
+                raise OutputExistsError(msg)
             hashes = {p: file_digest(p) for p in protected}
             fixed = self._correct(base)
             record = _with(
@@ -155,13 +158,16 @@ class RawExportService:
                 (xs + fixed.offset.x).astype(np.intp),
                 fixed.corrected.data[changed].astype(np.uint16),
             )
-            result = self._writer.write(base.path, destination, patch, preview=self._preview, overwrite=overwrite)
+            result = self._writer.write(
+                base.path,
+                destination,
+                patch,
+                preview=self._preview,
+                overwrite=overwrite,
+                check=(lambda out: self._check(fixed, out, hashes)) if self._verify else None,
+            )
             record = _with(record, output_file=str(result.path), digest=str(result.digest), preview=str(result.preview))
-            try:
-                verification = self._check(fixed, result.path, hashes) if self._verify else SKIPPED
-            except VerificationError:
-                result.path.unlink(missing_ok=True)
-                raise
+            verification = PASSED if self._verify else SKIPPED
         if record.passthrough:
             logger.info("%s: passthrough (no photosite changed)", path.name)
         return _with(record, status="ok", verification=verification)
@@ -176,7 +182,7 @@ class RawExportService:
         count = int(np.count_nonzero(result.frame.data != frame.data))
         return _Corrected(base, raw, placement.offset, placement.method, frame, result.frame, count)
 
-    def _check(self, fixed: _Corrected, output: Path, hashes: dict[Path, str]) -> str:
+    def _check(self, fixed: _Corrected, output: Path, hashes: dict[Path, str]) -> None:
         problems: list[str] = []
         written = self._writer.read_raw(output)
         if written.data.shape != fixed.raw.data.shape or written.cfa_pattern != fixed.raw.cfa_pattern:
@@ -187,7 +193,8 @@ class RawExportService:
             window = (slice(fixed.offset.y, fixed.offset.y + height), slice(fixed.offset.x, fixed.offset.x + width))
             expected[window] = fixed.corrected.data
             mask = np.zeros(expected.shape, dtype=np.bool_)
-            mask[window] = self._defects.mask(height, width)
+            if fixed.count:  # passthrough: the whole raw image must equal the base
+                mask[window] = self._defects.mask(height, width)
             problems.extend(_compare(written.data, fixed.raw.data, expected, mask))
         try:
             with self._decoder.open(output) as handle:
@@ -198,9 +205,8 @@ class RawExportService:
         problems.extend(f"defect still detected: {defect}" for defect in remaining)
         problems.extend(f"input changed: {p}" for p, digest in hashes.items() if file_digest(p) != digest)
         if problems:
-            msg = "verification failed (output removed): " + "; ".join(problems)
+            msg = "verification failed (nothing written): " + "; ".join(problems)
             raise VerificationError(msg)
-        return PASSED
 
 
 def _compare(
