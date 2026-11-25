@@ -298,6 +298,18 @@ def test_keep_gps_copies_gps_metadata(tmp_path: Path) -> None:
     assert GPS_LATITUDE in result.path.read_bytes()
 
 
+def test_self_closing_xmp_gps_element_does_not_swallow_later_metadata(tmp_path: Path) -> None:
+    xmp = (
+        b'<rdf:Description xmlns:ns1="http://ns.adobe.com/exif/1.0/"><ns1:GPSLatitude/>'
+        b"<dc:title>keep me</dc:title><ns1:GPSLatitude>34,36.0S</ns1:GPSLatitude></rdf:Description>"
+    )
+    base = write_dng(tmp_path / "base.dng", DngSpec(xmp=xmp))
+    result = WRITER.write(base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False)
+    packet = _gps_tags(result.path)[1]
+    assert b"<dc:title>keep me</dc:title>" in packet
+    assert b"GPS" not in packet
+
+
 def test_embedded_original_refuses_gps_stripping(tmp_path: Path) -> None:
     base = write_dng(tmp_path / "base.dng", DngSpec(original_raw=b"CR2 with GPS" * 4))
     with pytest.raises(DngFormatError, match="OriginalRawFileData"):

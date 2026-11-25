@@ -61,7 +61,7 @@ FIELD_TYPE_SIZES: Final = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4,
 IFD_HEADER_BYTES: Final = 2
 NEXT_IFD_BYTES: Final = 4
 XMP_GPS_PATTERNS: Final = (
-    re.compile(rb"<([A-Za-z_][\w.-]*:GPS\w*)\b[^>]*>.*?</\1\s*>", re.DOTALL),
+    re.compile(rb"<([A-Za-z_][\w.-]*:GPS\w*)\b[^>]*(?<!/)>.*?</\1\s*>", re.DOTALL),
     re.compile(rb"<[A-Za-z_][\w.-]*:GPS\w*\b[^>]*/>"),
     re.compile(rb"\s[A-Za-z_][\w.-]*:GPS\w*\s*=\s*(?:\"[^\"]*\"|'[^']*')"),
 )
