@@ -136,7 +136,7 @@ def test_missing_executable_explains_install(
 
 
 def test_timeout(tmp_path: Path) -> None:
-    with pytest.raises(ConverterError, match="timed out after 120 s"):
+    with pytest.raises(ConverterError, match=r"timed out after 120 s"):
         DnglabSource(runner=FakeConverter(timeout=True), which=_found).prepare(_cr2(tmp_path), tmp_path)
 
 
@@ -151,7 +151,7 @@ def test_missing_output(tmp_path: Path) -> None:
 
 
 def test_os_error(tmp_path: Path) -> None:
-    def broken(command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+    def broken(_command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
         raise PermissionError("denied")
 
     with pytest.raises(ConverterError, match="denied"):
@@ -160,7 +160,7 @@ def test_os_error(tmp_path: Path) -> None:
 
 def test_existing_dng_needs_reference(tmp_path: Path) -> None:
     dng = write_dng(tmp_path / "IMG_0002.dng")
-    with pytest.raises(CoordinateMappingError, match="IMG_0002.CR2 not found"):
+    with pytest.raises(CoordinateMappingError, match=r"IMG_0002\.CR2 not found"):
         ExistingDngSource().prepare(dng, tmp_path)
 
 

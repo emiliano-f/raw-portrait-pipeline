@@ -100,9 +100,9 @@ def test_new_digest_uses_256_tiles() -> None:
     import hashlib as h  # noqa: PLC0415
 
     tiles = [data[y : y + 256, x : x + 256] for y in (0, 256) for x in (0, 256, 512)]
-    expected = h.md5(b"".join(h.md5(t.astype("<u2").tobytes()).digest() for t in tiles)).digest()  # noqa: S324
+    expected = h.md5(b"".join(h.md5(t.astype("<u2").tobytes()).digest() for t in tiles)).digest()
     assert new_raw_digest(data) == expected
-    assert legacy_raw_digest(data) == h.md5(data.astype("<u2").tobytes()).digest()  # noqa: S324
+    assert legacy_raw_digest(data) == h.md5(data.astype("<u2").tobytes()).digest()
 
 
 def test_regenerate_replaces_thumbnail_and_jpeg(tmp_path: Path) -> None:

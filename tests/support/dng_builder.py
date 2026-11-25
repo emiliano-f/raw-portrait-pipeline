@@ -106,7 +106,7 @@ def write_dng(path: Path, spec: DngSpec | None = None) -> Path:
     s = spec or DngSpec()
     buf = _Buffer(s.byteorder)
     height, width = s.raw.shape
-    stored = s.raw.astype(np.dtype(f"{s.byteorder}u2")) if s.bits == 16 else s.raw.astype(np.uint8)  # noqa: PLR2004
+    stored = s.raw.astype(np.dtype(f"{s.byteorder}u2")) if s.bits == 16 else s.raw.astype(np.uint8)
     offsets, counts = _segments(buf, stored, s.tile, s.rows_per_strip)
     raw_entries: list[tuple[int, int, list[int] | bytes]] = [
         (254, LONG, [0]), (256, LONG, [width]), (257, LONG, [height]), (258, SHORT, [s.bits]),
