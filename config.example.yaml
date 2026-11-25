@@ -32,6 +32,7 @@ raw_export:                  # `raw-pipeline fix-raw`: corrected DNGs
   preview: regenerate        # keep | regenerate | remove
   verify: true
   keep_gps: null             # null = same as export.keep_gps; true keeps GPS in the DNG
+  allow_embedded_original: false  # true: accept DNGs embedding the original CR2 (needs keep_gps)
   report_filename: fix_raw_report.csv
 
 meter:

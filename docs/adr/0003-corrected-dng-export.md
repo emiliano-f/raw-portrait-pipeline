@@ -50,6 +50,10 @@ profiles, EXIF and maker data, which converters already get right.
   every EOS 800D photosite value. Converters that change values (linearisation,
   compression) are rejected by the format checks or by the exact mapping.
 - `existing_dng` needs the original CR2 next to the DNG to prove the mapping.
+- A base DNG that embeds its original raw file (`OriginalRawFileData`) is
+  rejected: the embedded CR2 still has the defect (and its own GPS).
+  `raw_export.allow_embedded_original` accepts it with a warning, only with
+  `keep_gps`.
 - New dependencies: none (tifffile, rawpy, Pillow are already used). DNGLab and
   Adobe DNG Converter are external tools installed by the user (CI installs
   DNGLab for the integration test).

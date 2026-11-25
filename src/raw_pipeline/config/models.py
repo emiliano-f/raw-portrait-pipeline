@@ -274,6 +274,12 @@ class RawExportConfig(_Section):
         description="Copy GPS metadata (EXIF GPS IFD, XMP exif:GPS fields) into the corrected DNG. "
         "Unset: same as export.keep_gps (off by default, so GPS is stripped).",
     )
+    allow_embedded_original: bool = Field(
+        default=False,
+        description="Accept base DNGs that embed their original raw file (OriginalRawFileData), with a "
+        "warning: the embedded CR2 still shows the uncorrected defect and keeps its own GPS, so this also "
+        "needs keep_gps. Off: such DNGs fail.",
+    )
     report_filename: str = Field(
         default="fix_raw_report.csv", description="CSV report file name inside the output directory."
     )

@@ -215,10 +215,12 @@ class TiffDngRawWriter:
         overwrite: bool,
         check: Callable[[Path], None] | None = None,
         keep_gps: bool = False,
+        allow_embedded_original: bool = False,
     ) -> DngWriteResult:
         """See :meth:`~raw_pipeline.core.protocols.DngRawWriter.write`."""
         layout = read_layout(base)
         check_patchable(layout, base.name)
+        embedded = _check_embedded_original(layout, allow=allow_embedded_original, keep_gps=keep_gps)
         if destination.exists() and not overwrite:
             msg = f"{destination} already exists; pass --overwrite to replace it"
             raise OutputExistsError(msg)
@@ -243,7 +245,7 @@ class TiffDngRawWriter:
         except BaseException:
             tmp.unlink(missing_ok=True)
             raise
-        return DngWriteResult(destination, written, digest, applied, gps)
+        return DngWriteResult(destination, written, digest, applied, gps, embedded)
 
     @staticmethod
     def _digests(editor: _Editor, layout: DngLayout, base: Path, patch: RawPatch) -> DigestHandling:
@@ -325,19 +327,32 @@ def _publish(tmp: Path, destination: Path, *, overwrite: bool) -> None:
     tmp.unlink()
 
 
-def _gps(editor: _Editor, fh: BinaryIO, layout: DngLayout, *, keep: bool) -> GpsHandling:
-    """Strip the GPS IFD and XMP GPS fields of IFD0 in place unless ``keep``; report what was there.
+def _check_embedded_original(layout: DngLayout, *, allow: bool, keep_gps: bool) -> bool:
+    """Whether the DNG embeds its original raw file; raise unless that is allowed.
 
     Raises:
-        DngFormatError: GPS must be stripped but the DNG embeds its original raw file, whose own
-            metadata cannot be cleaned in place.
+        DngFormatError: It does and ``allow`` is false (the embedded file still has the defect), or GPS
+            must be stripped (the embedded file keeps its own GPS, which cannot be cleaned in place).
     """
-    if not keep and ORIGINAL_RAW_FILE_DATA in layout.ifd0.entries:
+    if ORIGINAL_RAW_FILE_DATA not in layout.ifd0.entries:
+        return False
+    if not allow:
+        msg = (
+            "the DNG embeds its original raw file (OriginalRawFileData), which still shows the uncorrected "
+            "defect; convert without embedding the original, or set raw_export.allow_embedded_original: true"
+        )
+        raise DngFormatError(msg)
+    if not keep_gps:
         msg = (
             "the DNG embeds its original raw file (OriginalRawFileData), which may carry GPS that cannot be "
             "stripped in place; convert without embedding the original, or set raw_export.keep_gps: true"
         )
         raise DngFormatError(msg)
+    return True
+
+
+def _gps(editor: _Editor, fh: BinaryIO, layout: DngLayout, *, keep: bool) -> GpsHandling:
+    """Strip the GPS IFD and XMP GPS fields of IFD0 in place unless ``keep``; report what was there."""
     entry = editor.entry_offset(layout.ifd0, GPS_INFO)
     xmp = layout.ifd0.entries.get(XMP_PACKET)
     packet = b""

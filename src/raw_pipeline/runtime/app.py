@@ -280,6 +280,7 @@ def fix_raw(
         preview=PreviewMode(config.raw_export.preview),
         verify=config.raw_export.verify,
         keep_gps=config.export.keep_gps if config.raw_export.keep_gps is None else config.raw_export.keep_gps,
+        allow_embedded_original=config.raw_export.allow_embedded_original,
     )
     request.output_dir.mkdir(parents=True, exist_ok=True)
     records = tuple(

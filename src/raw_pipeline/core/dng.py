@@ -126,6 +126,8 @@ class DngWriteResult:
         digest: Handling of the raw image digests.
         preview: Preview handling actually applied.
         gps: Handling of GPS metadata.
+        embedded_original: The output still embeds the original raw file (``OriginalRawFileData``),
+            which shows the uncorrected defect.
     """
 
     path: Path
@@ -133,3 +135,4 @@ class DngWriteResult:
     digest: DigestHandling
     preview: PreviewMode
     gps: GpsHandling = GpsHandling.ABSENT
+    embedded_original: bool = False

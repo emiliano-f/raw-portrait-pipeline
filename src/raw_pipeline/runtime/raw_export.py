@@ -51,6 +51,7 @@ class FixRawRecord:
     passthrough: bool = False
     digest: str = ""
     gps: str = ""
+    embedded_original: str = ""
     preview: str = ""
     verification: str = ""
     error: str = ""
@@ -100,6 +101,7 @@ class RawExportService:
         preview: Preview handling.
         verify: Run the post-write checks.
         keep_gps: Copy GPS metadata into the output (stripped otherwise).
+        allow_embedded_original: Accept base DNGs that embed their original raw file (with a warning).
     """
 
     def __init__(
@@ -116,6 +118,7 @@ class RawExportService:
         preview: PreviewMode = PreviewMode.REGENERATE,
         verify: bool = True,
         keep_gps: bool = False,
+        allow_embedded_original: bool = False,
     ) -> None:
         self._decoder = decoder
         self._source = source
@@ -125,6 +128,7 @@ class RawExportService:
         self._placement = placement
         self._remaining = remaining_defects
         self._keep_gps = keep_gps
+        self._allow_embedded_original = allow_embedded_original
         self._detection = detection
         self._preview = preview
         self._verify = verify
@@ -173,15 +177,22 @@ class RawExportService:
                 overwrite=overwrite,
                 check=(lambda out: residuals.extend(self._check(fixed, out, hashes))) if self._verify else None,
                 keep_gps=self._keep_gps,
+                allow_embedded_original=self._allow_embedded_original,
             )
             record = _with(
                 record,
                 output_file=str(result.path),
                 digest=str(result.digest),
                 gps=str(result.gps),
+                embedded_original="kept" if result.embedded_original else "absent",
                 preview=str(result.preview),
             )
             verification = (PASSED_RESIDUAL if residuals else PASSED) if self._verify else SKIPPED
+        if record.embedded_original == "kept":
+            logger.warning(
+                "%s: the corrected DNG still embeds the original raw file, which shows the uncorrected defect",
+                path.name,
+            )
         if record.passthrough:
             logger.info("%s: passthrough (no photosite changed)", path.name)
         return _with(record, status="ok", verification=verification)

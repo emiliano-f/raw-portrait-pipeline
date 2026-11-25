@@ -339,3 +339,29 @@ def test_unmatched_other_raws_are_skipped_with_a_warning(tmp_path: Path) -> None
     code, text = _run("fix-raw", src, out, "--config", _config(tmp_path))
     assert code == 0
     assert "skipping 1 file(s) such as IMG_0009.CR2" in text
+
+
+@pytest.mark.parametrize("keep_gps", [False, True])
+def test_embedded_original_fails_by_default(tmp_path: Path, keep_gps: bool) -> None:
+    src, out = tmp_path / "in", tmp_path / "out"
+    src.mkdir()
+    write_dng(src / "IMG_0001.dng", dataclasses.replace(_hot_spec(), original_raw=b"original CR2" * 4))
+    (src / "IMG_0001.CR2").write_bytes(b"cr2")
+    code, text = _run("fix-raw", src, out, "--config", _config(tmp_path, keep_gps=keep_gps))
+    assert code == 1
+    assert "allow_embedded_original" in text
+    (row,) = _report(out)
+    assert row["status"] == "failed"
+    assert "OriginalRawFileData" in row["error"]
+
+
+def test_allowed_embedded_original_is_reported_with_a_warning(tmp_path: Path) -> None:
+    src, out = tmp_path / "in", tmp_path / "out"
+    src.mkdir()
+    write_dng(src / "IMG_0001.dng", dataclasses.replace(_hot_spec(), original_raw=b"original CR2" * 4))
+    (src / "IMG_0001.CR2").write_bytes(b"cr2")
+    config = _config(tmp_path, keep_gps=True, allow_embedded_original=True)
+    code, text = _run("fix-raw", src, out, "--config", config)
+    assert code == 0, text
+    assert "still embeds the original raw file" in text
+    assert _report(out)[0]["embedded_original"] == "kept"

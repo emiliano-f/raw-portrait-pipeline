@@ -319,15 +319,43 @@ def test_xmp_gps_attribute_value_with_tag_delimiters_is_stripped(tmp_path: Path)
     assert b"GPS" not in packet
 
 
-def test_embedded_original_refuses_gps_stripping(tmp_path: Path) -> None:
-    base = write_dng(tmp_path / "base.dng", DngSpec(original_raw=b"CR2 with GPS" * 4))
-    with pytest.raises(DngFormatError, match="OriginalRawFileData"):
-        WRITER.write(base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False)
+@pytest.mark.parametrize("keep_gps", [False, True])
+def test_embedded_original_is_rejected_by_default(tmp_path: Path, keep_gps: bool) -> None:
+    base = write_dng(tmp_path / "base.dng", DngSpec(original_raw=b"CR2 with the defect" * 4))
+    with pytest.raises(DngFormatError, match="uncorrected defect"):
+        WRITER.write(
+            base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False, keep_gps=keep_gps
+        )
     assert list(tmp_path.iterdir()) == [base]
-    kept = WRITER.write(
-        base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False, keep_gps=True
+
+
+def test_allowed_embedded_original_still_needs_keep_gps(tmp_path: Path) -> None:
+    base = write_dng(tmp_path / "base.dng", DngSpec(original_raw=b"CR2 with GPS" * 4))
+    with pytest.raises(DngFormatError, match="keep_gps"):
+        WRITER.write(
+            base,
+            tmp_path / "o.dng",
+            _column_patch(),
+            preview=PreviewMode.KEEP,
+            overwrite=False,
+            allow_embedded_original=True,
+        )
+    assert list(tmp_path.iterdir()) == [base]
+
+
+def test_allowed_embedded_original_is_kept_and_reported(tmp_path: Path) -> None:
+    base = write_dng(tmp_path / "base.dng", DngSpec(original_raw=b"CR2 with GPS" * 4))
+    result = WRITER.write(
+        base,
+        tmp_path / "o.dng",
+        _column_patch(),
+        preview=PreviewMode.KEEP,
+        overwrite=False,
+        keep_gps=True,
+        allow_embedded_original=True,
     )
-    assert kept.path.exists()
+    assert result.embedded_original
+    assert b"CR2 with GPS" * 4 in result.path.read_bytes()
 
 
 def test_xmp_gps_under_another_prefix_is_stripped(tmp_path: Path) -> None:

@@ -151,9 +151,15 @@ CR2.
 JPG/TIFF exports do. The GPS directory is zeroed and unlinked from IFD0 and the
 XMP GPS fields are blanked in place; the raw image data and its digests are not
 touched. Set `raw_export.keep_gps: true` to keep the location in the DNG only.
-A DNG that embeds its original raw file (Adobe DNG Converter's "Embed Original
-Raw File") fails while GPS is being stripped, because the embedded CR2 keeps its
-own GPS; convert without embedding, or set `raw_export.keep_gps: true`.
+### Embedded original raw file
+
+A DNG that embeds its original raw file (`OriginalRawFileData`, Adobe DNG
+Converter's "Embed Original Raw File", `-e`) fails by default: the embedded CR2
+still shows the uncorrected defect line, and an editor can extract it. Convert
+without embedding the original. `raw_export.allow_embedded_original: true`
+accepts such DNGs with a warning and the report says `embedded_original=kept`;
+it also needs `raw_export.keep_gps: true`, because the embedded CR2 keeps its
+own GPS, which cannot be stripped in place. DNGLab never embeds the original.
 
 `raw_export.preview`:
 
@@ -204,4 +210,5 @@ is reported as failed. The checks run on the finished file before it is moved in
 | `digest` | `absent`, `unchanged`, `recomputed` or `removed` |
 | `preview` | Preview handling actually applied |
 | `gps` | `absent`, `kept` or `stripped` |
+| `embedded_original` | `absent`, or `kept` with `raw_export.allow_embedded_original` |
 | `verification` | `passed`, `passed_residual` (see [Verification](#verification)) or `skipped` |

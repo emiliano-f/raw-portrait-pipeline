@@ -147,6 +147,7 @@ class DngRawWriter(Protocol):
         overwrite: bool,
         check: Callable[[Path], None] | None = None,
         keep_gps: bool = False,
+        allow_embedded_original: bool = False,
     ) -> DngWriteResult:
         """Copy ``base`` to ``destination`` and overwrite only the photosites of ``patch``.
 
@@ -155,11 +156,14 @@ class DngRawWriter(Protocol):
         leaves the raw data and previews untouched. GPS metadata is stripped
         unless ``keep_gps``; that never changes the raw data or its digests. ``check`` is
         called on the finished file before it is published; if it raises,
-        nothing is published and an existing ``destination`` is kept.
+        nothing is published and an existing ``destination`` is kept. A base
+        that embeds its original raw file is rejected unless
+        ``allow_embedded_original`` (and then only together with ``keep_gps``,
+        since the embedded file keeps its own GPS).
 
         Raises:
             OutputExistsError: ``destination`` exists and ``overwrite`` is false.
-            DngFormatError: ``base`` cannot be patched in place.
+            DngFormatError: ``base`` cannot be patched in place, or embeds its original raw file.
         """
         ...
 
