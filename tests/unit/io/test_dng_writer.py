@@ -305,3 +305,17 @@ def test_no_gps_is_reported_absent(tmp_path: Path, keep: bool) -> None:
         base, tmp_path / "o.dng", _column_patch(), preview=PreviewMode.KEEP, overwrite=False, keep_gps=keep
     )
     assert result.gps is GpsHandling.ABSENT
+
+
+@pytest.mark.parametrize("preview", [PreviewMode.REMOVE, PreviewMode.REGENERATE])
+def test_gps_stripping_after_preview_edits_keeps_raw_intact(tmp_path: Path, preview: PreviewMode) -> None:
+    spec = DngSpec(gps=True)
+    base = write_dng(tmp_path / "base.dng", spec)
+    patch = _column_patch()
+    result = WRITER.write(base, tmp_path / "o.dng", patch, preview=preview, overwrite=False)
+    assert result.gps is GpsHandling.STRIPPED
+    expected = spec.raw.copy()
+    expected[patch.ys, patch.xs] = patch.values
+    np.testing.assert_array_equal(read_raw(result.path).data, expected)
+    assert not _gps_tags(result.path)[0]
+    assert GPS_LATITUDE not in result.path.read_bytes()

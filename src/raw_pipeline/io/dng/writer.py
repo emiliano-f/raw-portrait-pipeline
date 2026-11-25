@@ -107,6 +107,16 @@ class _Editor:
         else:
             self.write_at(entry.value_offset, packed)
 
+    def entry_offset(self, ifd: Ifd, code: int) -> int | None:
+        """File offset of the ``code`` entry as the IFD is now (earlier removals shift entries)."""
+        self._fh.seek(ifd.offset)
+        (count,) = struct.unpack(f"{self._bo}H", self._fh.read(2))
+        table = self._fh.read(count * ENTRY_SIZE)
+        for i in range(count):
+            if struct.unpack(f"{self._bo}H", table[i * ENTRY_SIZE : i * ENTRY_SIZE + 2])[0] == code:
+                return ifd.offset + 2 + i * ENTRY_SIZE
+        return None
+
     def remove_entries(self, ifd: Ifd, codes: set[int]) -> None:
         """Drop the entries ``codes`` from ``ifd``, shifting the remaining ones (sorted order kept)."""
         self._fh.seek(ifd.offset)
@@ -313,7 +323,7 @@ def _publish(tmp: Path, destination: Path, *, overwrite: bool) -> None:
 
 def _gps(editor: _Editor, fh: BinaryIO, layout: DngLayout, *, keep: bool) -> GpsHandling:
     """Strip the GPS IFD and XMP GPS fields of IFD0 in place unless ``keep``; report what was there."""
-    entry = layout.ifd0.entries.get(GPS_INFO)
+    entry = editor.entry_offset(layout.ifd0, GPS_INFO)
     xmp = layout.ifd0.entries.get(XMP_PACKET)
     packet = b""
     if xmp is not None and xmp.count > INLINE_BYTES:
@@ -335,10 +345,10 @@ def _gps(editor: _Editor, fh: BinaryIO, layout: DngLayout, *, keep: bool) -> Gps
     return GpsHandling.STRIPPED
 
 
-def _ifd_segments(fh: BinaryIO, byteorder: str, pointer: Entry) -> list[tuple[int, int]]:
-    """``(offset, bytes)`` of the IFD ``pointer`` points to: its entry table and out-of-line values."""
+def _ifd_segments(fh: BinaryIO, byteorder: str, pointer: int) -> list[tuple[int, int]]:
+    """``(offset, bytes)`` of the IFD the entry at ``pointer`` points to: its table and out-of-line values."""
     size = fh.seek(0, os.SEEK_END)
-    fh.seek(pointer.entry_offset + 8)
+    fh.seek(pointer + 8)
     (start,) = struct.unpack(f"{byteorder}I", fh.read(INLINE_BYTES))
     if start + IFD_HEADER_BYTES > size:
         return []
