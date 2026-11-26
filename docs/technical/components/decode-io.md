@@ -123,5 +123,5 @@ for that image.
 - `tests/unit/stages/test_decode.py`: fake decoder/handle/corrector; the stage
   contract suite (with a real and a `none` corrector); correction order,
   records, artifacts, rotation.
-- `@pytest.mark.slow` tests decode `tests/fixtures/*.CR2` and check the file's
-  SHA-256 is unchanged; they skip when no fixture is present.
+- `@pytest.mark.slow` tests decode the committed dark frame
+  (`tests/fixtures/dark/dark_iso400.CR2`) and check its SHA-256 is unchanged.

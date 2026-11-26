@@ -238,6 +238,62 @@ class QAConfig(_Section):
     timeout_s: float = Field(default=30.0, gt=0, description="Request timeout in seconds.")
 
 
+class ConverterConfig(_Section):
+    """External RAW-to-DNG converter used by ``fix-raw``."""
+
+    executable: str | None = Field(
+        default=None,
+        description="Path or command name of the converter executable. Default: 'dnglab' for dnglab, "
+        "'Adobe DNG Converter' for adobe_converter (looked up on PATH).",
+    )
+    args: tuple[str, ...] = Field(
+        default=(),
+        description="Extra command-line arguments; the flags for uncompressed CFA output without the "
+        "embedded original are always added by the code.",
+    )
+    timeout_s: float = Field(default=120.0, gt=0, description="Conversion timeout per file, in seconds.")
+
+
+class RawExportConfig(_Section):
+    """``fix-raw``: corrected DNG output (uses ``defects.method`` and ``defects.map``)."""
+
+    source: str = Field(
+        default="dnglab",
+        description="Registered DNG source: dnglab | adobe_converter (convert .CR2 inputs) | "
+        "existing_dng (.DNG inputs, each next to its original .CR2).",
+    )
+    converter: ConverterConfig = Field(default_factory=ConverterConfig)
+    preview: Literal["keep", "regenerate", "remove"] = Field(
+        default="regenerate",
+        description="Embedded previews still show the defect: keep them, regenerate them from the "
+        "corrected CFA, or remove them (the IFD0 thumbnail is blanked to neutral grey).",
+    )
+    verify: bool = Field(default=True, description="Check every written DNG (see the fix-raw guide).")
+    keep_gps: bool | None = Field(
+        default=None,
+        description="Copy GPS metadata (EXIF GPS IFD, XMP exif:GPS fields) into the corrected DNG. "
+        "Unset: same as export.keep_gps (off by default, so GPS is stripped).",
+    )
+    allow_embedded_original: bool = Field(
+        default=False,
+        description="Accept base DNGs that embed their original raw file (OriginalRawFileData), with a "
+        "warning: the embedded CR2 still shows the uncorrected defect and keeps its own GPS, so this also "
+        "needs keep_gps. Off: such DNGs fail.",
+    )
+    report_filename: str = Field(
+        default="fix_raw_report.csv", description="CSV report file name inside the output directory."
+    )
+
+    @field_validator("report_filename")
+    @classmethod
+    def _bare_file_name(cls, name: str) -> str:
+        """The report must land directly in the output directory (never beside an input)."""
+        if not name or name in {".", ".."} or "/" in name or "\\" in name:
+            msg = f"must be a plain file name without folders, got {name!r}"
+            raise ValueError(msg)
+        return name
+
+
 class AppConfig(_Section):
     """Root of the configuration file."""
 
@@ -250,6 +306,7 @@ class AppConfig(_Section):
     export: ExportConfig = Field(default_factory=ExportConfig)
     report: ReportConfig = Field(default_factory=ReportConfig)
     qa: QAConfig = Field(default_factory=QAConfig)
+    raw_export: RawExportConfig = Field(default_factory=RawExportConfig)
     plugins: dict[str, dict[str, Any]] = Field(
         default_factory=dict, description="Free-form sections for third-party plugins, keyed by plugin name."
     )

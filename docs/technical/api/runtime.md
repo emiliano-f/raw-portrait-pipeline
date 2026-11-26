@@ -10,5 +10,6 @@ Generated from the docstrings of `raw_pipeline.runtime`.
 ::: raw_pipeline.runtime.factory
 ::: raw_pipeline.runtime.observers
 ::: raw_pipeline.runtime.pipeline
+::: raw_pipeline.runtime.raw_export
 ::: raw_pipeline.runtime.report_files
 ::: raw_pipeline.runtime.services

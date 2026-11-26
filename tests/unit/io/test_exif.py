@@ -10,9 +10,7 @@ from PIL import ExifTags, Image, TiffImagePlugin
 
 from raw_pipeline.core.values import ExifInfo
 from raw_pipeline.io.exif import ExifReader
-
-FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
-SAMPLES = sorted(FIXTURES.glob("*.CR2"))
+from tests.support.fixtures import DARK_FRAME
 
 
 def write_jpeg(path: Path, *, gps: bool = False, orientation: int = 6) -> Path:
@@ -74,9 +72,8 @@ def test_file_without_exif(tmp_path: Path) -> None:
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(not SAMPLES, reason="no tests/fixtures/*.CR2")
 def test_real_cr2() -> None:
-    info = ExifReader().read(SAMPLES[0])
+    info = ExifReader().read(DARK_FRAME)
     assert info.camera_make == "Canon"
     assert info.iso is not None
     assert info.captured_at is not None

@@ -24,18 +24,26 @@ NO_MKDOCS_2_WARNING=1 uv run mkdocs build --strict
 | `tests/contract/` | Reusable contract suites (`StageContract`, `ExporterContract`, `DefectCorrectorContract`, `FaceDetectorContract`, `MeteringContract`, `QAProviderContract`). Every implementation subclasses its suite. |
 | `tests/support/synthetic.py` | Deterministic synthetic images, CFA frames and faces. |
 | `tests/integration/` | End-to-end runs on real CR2 files, marked `slow`. |
-| `tests/fixtures/` | Where local sample CR2s go. **Not committed.** |
+| `tests/fixtures/dark/` | The committed dark frame (EOS 800D, lens cap on, no personal data); see `tests/fixtures/README.md`. |
 
 Rules: no network (QA providers get fake transports), no real photos in the
-repository, deterministic seeds, and anything that writes files uses
+repository (only the metadata-stripped dark frame), deterministic seeds, and anything that writes files uses
 `tmp_path`.
 
 ## Integration tests
 
-`tests/integration/` runs the real `raw-pipeline process` command and the
-decode → meter → tone stages on every `.CR2` in `tests/fixtures/`, or in the
-folder named by `RAW_PIPELINE_SAMPLES`. Without samples they are skipped. They
-check, for each sample:
+`tests/integration/` has two kinds of slow tests.
+
+On the committed dark frame (always available, run in CI):
+
+- `detect-defects --dark-frame` finds the hot columns 1509 and 1510;
+- `fix-raw` with DNGLab (skipped when `dnglab` is not on `PATH`) writes a DNG
+  whose photosites outside the map equal the CR2, whose corrected columns are
+  within dark-frame noise of their neighbours, and with the input unchanged.
+
+On real portraits, read from the folder named by `RAW_PIPELINE_FIXTURES_DIR`
+(skipped when it is unset), the `process` command, the decode → meter → tone
+stages and `fix-raw` are checked, for each portrait:
 
 - the JPEG and TIFF exist, have the decoded size and embed an sRGB ICC profile;
 - `tone.clipped_fraction` and the clipped pixels of the JPEG stay below 2 %;
@@ -47,21 +55,13 @@ check, for each sample:
   `meter.target_face_luminance` (unless the correction was clamped); without a
   face, the centre-weighted target holds instead.
 
-Get a sample (public, from raw.pixls.us) and run them:
-
 ```bash
-curl -sSL -f -o tests/fixtures/IMG_3378.CR2 "https://raw.pixls.us/data/Canon/EOS%20800D/IMG_3378.CR2"
-uv run pytest -m slow
+uv run pytest -m slow                                          # dark frame only
+RAW_PIPELINE_FIXTURES_DIR=~/Pictures/portraits uv run pytest -m slow  # plus your portraits
 ```
 
-or point at your own folder:
-
-```bash
-RAW_PIPELINE_SAMPLES=~/Pictures/shoot uv run pytest -m slow
-```
-
-`*.CR2` is git-ignored. Never commit sample or personal photos: the
-repository is public.
+`*.CR2` is git-ignored (except the dark frame). Never commit portraits or
+other personal photos, with or without Git LFS: the repository is public.
 
 ## Docs
 

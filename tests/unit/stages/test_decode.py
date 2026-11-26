@@ -29,12 +29,11 @@ from raw_pipeline.core.values import ExifInfo
 from raw_pipeline.io.rawpy_decoder import RawpyDecoder, sensor_to_image
 from raw_pipeline.stages.decode import DecodeStage, crop_window, defect_center, downscale
 from tests.contract.stage_contract import StageContract
+from tests.support.fixtures import DARK_FRAME
 from tests.support.synthetic import cfa_frame, decoded_context, inject_hot
 
 HEIGHT, WIDTH = 64, 96
 EXIF = ExifInfo(camera_make="Canon", camera_model="Canon EOS 800D", iso=100)
-FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
-SAMPLES = sorted(FIXTURES.glob("*.CR2"))
 
 
 class FakeHandle:
@@ -258,9 +257,8 @@ def test_registered_and_built_from_config(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(not SAMPLES, reason="no tests/fixtures/*.CR2")
 def test_real_cr2_input_is_unchanged() -> None:
-    path = SAMPLES[0]
+    path = DARK_FRAME
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     stage = DecodeStage(
         decoder=RawpyDecoder(),

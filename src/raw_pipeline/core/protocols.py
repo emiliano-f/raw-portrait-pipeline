@@ -7,7 +7,7 @@ below and its contract test suite in ``tests/contract/``.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,6 +17,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from raw_pipeline.core.context import ImageContext
+from raw_pipeline.core.dng import BaseDng, DngRawImage, DngWriteResult, PreviewMode, RawPatch
 from raw_pipeline.core.raw import (
     CFAFrame,
     DefectCorrectionResult,
@@ -103,6 +104,67 @@ class DefectCorrector(Protocol):
 
     def correct(self, frame: CFAFrame, defects: DefectMap) -> DefectCorrectionResult:
         """Return a corrected copy of ``frame`` and the number of photosites replaced."""
+        ...
+
+
+class DngSource(Protocol):
+    """Produces the base DNG that ``fix-raw`` patches (ADR 0003).
+
+    Guarantees: the input is never modified; converters write only inside
+    ``workdir``; the base DNG is uncompressed, CFA (never linear) and carries
+    no embedded original raw; a missing converter executable raises
+    :class:`~raw_pipeline.core.errors.ConverterNotFoundError` with install
+    instructions.
+    """
+
+    name: ClassVar[str]
+    input_suffixes: ClassVar[frozenset[str]]
+    """Lower-case input suffixes this source accepts (e.g. ``{".cr2"}``)."""
+
+    def prepare(self, source: Path, workdir: Path) -> BaseDng:
+        """Return the base DNG for ``source``, converting into ``workdir`` if needed."""
+        ...
+
+
+class DngRawWriter(Protocol):
+    """Reads and patches the raw image data of an uncompressed CFA DNG in place (ADR 0003)."""
+
+    def read_raw(self, path: Path) -> DngRawImage:
+        """Return the stored CFA of the main raw IFD.
+
+        Raises:
+            DngFormatError: Not a DNG, no CFA raw IFD, compressed, linear or not 16-bit.
+        """
+        ...
+
+    def write(
+        self,
+        base: Path,
+        destination: Path,
+        patch: RawPatch,
+        *,
+        preview: PreviewMode,
+        overwrite: bool,
+        check: Callable[[Path], None] | None = None,
+        keep_gps: bool = False,
+        allow_embedded_original: bool = False,
+    ) -> DngWriteResult:
+        """Copy ``base`` to ``destination`` and overwrite only the photosites of ``patch``.
+
+        The TIFF/DNG structure is kept; raw image digests are recomputed or
+        removed and previews handled according to ``preview``. An empty patch
+        leaves the raw data and previews untouched. GPS metadata is stripped
+        unless ``keep_gps``; that never changes the raw data or its digests. ``check`` is
+        called on the finished file before it is published; if it raises,
+        nothing is published and an existing ``destination`` is kept. A base
+        that embeds its original raw file is rejected unless
+        ``allow_embedded_original`` (and then only together with ``keep_gps``,
+        since the embedded file keeps its own GPS).
+
+        Raises:
+            OutputExistsError: ``destination`` exists and ``overwrite`` is false.
+            DngFormatError: ``base`` cannot be patched in place, or embeds its original raw file.
+        """
         ...
 
 

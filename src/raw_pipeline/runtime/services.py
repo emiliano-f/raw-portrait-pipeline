@@ -9,15 +9,16 @@ with a clear message only when the feature is actually used.
 from __future__ import annotations
 
 import importlib
-from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol, cast
 
 from raw_pipeline.config.models import DefectDetectionConfig
+from raw_pipeline.core.dng import DngRawImage
 from raw_pipeline.core.errors import PipelineError
-from raw_pipeline.core.protocols import DefectDetector
-from raw_pipeline.core.raw import DefectMap
+from raw_pipeline.core.protocols import DefectDetector, DngRawWriter
+from raw_pipeline.core.raw import CFAFrame, DefectMap, DefectResidual
 
 
 class ComponentUnavailableError(PipelineError):
@@ -52,6 +53,72 @@ DefectDetectorFactory = Callable[[DefectDetectionConfig], DefectDetector]
 """Builds a defect detector from the ``defects.detection`` section."""
 
 
+class FileDiscovery(Protocol):
+    """Lists the files of ``input_dir`` with one of ``extensions`` (lower case), sorted."""
+
+    def __call__(
+        self, input_dir: Path, *, extensions: Collection[str], exclude_dirs: Iterable[Path] = ()
+    ) -> list[Path]:
+        """Return the matching files of ``input_dir`` (not recursive)."""
+        ...
+
+
+class ReportWriter(Protocol):
+    """Writes CSV rows to ``path``; refuses to replace it unless ``overwrite``."""
+
+    def __call__(self, rows: Sequence[Mapping[str, object]], path: Path, *, overwrite: bool) -> Path:
+        """Write ``rows`` and return ``path``."""
+        ...
+
+
+class RawPlacement(Protocol):
+    """Finds the reference CFA inside a DNG raw image (``raw_pipeline.defects.placement``)."""
+
+    def locate(self, reference: CFAFrame, raw: DngRawImage) -> Any:  # noqa: ANN401 - defects.placement.Placement
+        """Return the placement (``offset``, ``method``) or raise ``CoordinateMappingError``."""
+        ...
+
+    def visible_frame(self, reference: CFAFrame, raw: DngRawImage, offset: Any) -> CFAFrame:  # noqa: ANN401
+        """The DNG photosites under the reference's visible area as a :class:`CFAFrame`."""
+        ...
+
+
+RemainingDefects = Callable[[CFAFrame, CFAFrame, DefectMap, DefectDetectionConfig], list[DefectResidual]]
+"""Configured defects the detector still finds after correction, scored before vs after (empty when gone)."""
+
+
+class _Placement:
+    def locate(self, reference: CFAFrame, raw: DngRawImage) -> Any:  # noqa: ANN401
+        return resolve("raw_pipeline.defects.placement", "find_offset")(reference, raw)
+
+    def visible_frame(self, reference: CFAFrame, raw: DngRawImage, offset: Any) -> CFAFrame:  # noqa: ANN401
+        return cast("CFAFrame", resolve("raw_pipeline.defects.placement", "visible_frame")(reference, raw, offset))
+
+
+def _discover_files(input_dir: Path, *, extensions: Collection[str], exclude_dirs: Iterable[Path] = ()) -> list[Path]:
+    found = resolve("raw_pipeline.io.discovery", "discover_raw_files")(
+        input_dir, exclude_dirs=tuple(exclude_dirs), extensions=extensions
+    )
+    return cast("list[Path]", found)
+
+
+def _make_dng_writer() -> DngRawWriter:
+    return cast("DngRawWriter", resolve("raw_pipeline.io.dng.writer", "TiffDngRawWriter")())
+
+
+def _write_report(rows: Sequence[Mapping[str, object]], path: Path, *, overwrite: bool) -> Path:
+    return cast("Path", resolve("raw_pipeline.io.dng.report", "write_fix_raw_report")(rows, path, overwrite=overwrite))
+
+
+def _remaining_defects(
+    before: CFAFrame, after: CFAFrame, defects: DefectMap, config: DefectDetectionConfig
+) -> list[DefectResidual]:
+    detector_cls = resolve("raw_pipeline.defects.detection", "StatisticalDefectDetector")
+    detector = detector_cls.from_config(config)  # type: ignore[attr-defined]
+    found = resolve("raw_pipeline.defects.verification", "residual_defects")(before, after, defects, detector)
+    return cast("list[DefectResidual]", found)
+
+
 @dataclass(frozen=True)
 class RuntimeServices:
     """Lower-layer collaborators of the CLI commands (injectable for tests).
@@ -61,12 +128,22 @@ class RuntimeServices:
         write_defect_map: Standalone defect-map writer (``--output``).
         merge_defect_map: Config-file merger (no ``--output``).
         make_defect_detector: Defect detector factory.
+        discover_files: Input discovery by suffix (``fix-raw``).
+        make_dng_writer: Builds the DNG raw writer (``fix-raw``).
+        placement: Reference-to-DNG coordinate mapping (``fix-raw``).
+        remaining_defects: Post-correction defect scoring (``fix-raw`` verification).
+        write_report: CSV writer of the ``fix-raw`` report.
     """
 
     discover: InputDiscovery
     write_defect_map: DefectMapWriter
     merge_defect_map: DefectMapMerger
     make_defect_detector: DefectDetectorFactory
+    discover_files: FileDiscovery = _discover_files
+    make_dng_writer: Callable[[], DngRawWriter] = _make_dng_writer
+    placement: RawPlacement = field(default_factory=_Placement)
+    remaining_defects: RemainingDefects = _remaining_defects
+    write_report: ReportWriter = _write_report
 
     @classmethod
     def builtin(cls) -> RuntimeServices:

@@ -16,7 +16,7 @@ def test_default_wraps_process_wide_registries() -> None:
     assert regs.reporters is core_registries.reporter_registry
     assert {r.kind for r in regs.all()} == {
         "stages", "raw_decoders", "defect_correctors", "detectors", "metering",
-        "retouchers", "exporters", "qa", "reporters",
+        "retouchers", "exporters", "qa", "reporters", "dng_sources",
     }  # fmt: skip
 
 

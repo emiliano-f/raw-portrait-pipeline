@@ -27,6 +27,7 @@ FULL_CATALOG = {
     "exporters": {"jpeg", "tiff"},
     "reporters": {"csv", "contact_sheet"},
     "qa": {"none", "openai_compatible"},
+    "dng_sources": {"dnglab", "adobe_converter", "existing_dng"},
 }
 
 

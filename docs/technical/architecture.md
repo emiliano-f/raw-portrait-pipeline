@@ -68,6 +68,11 @@ flowchart LR
   processes (`--workers`) in a deterministic order; batch reporters run in the
   main process after all images.
 
+`fix-raw` is a separate use case that never runs the stages: `RawExportService`
+(`runtime/raw_export.py`) chains a `DngSource`, the `DngRawWriter`, the
+placement helpers in `defects/` and the configured `DefectCorrector`
+([DNG export](components/dng.md), [ADR 0003](../adr/0003-corrected-dng-export.md)).
+
 ## Composition root
 
 `raw_pipeline.runtime` is the only place that knows concrete classes:

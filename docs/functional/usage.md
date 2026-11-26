@@ -60,6 +60,12 @@ Output rules:
 `defects.corrected_pixel_count`, `qa.flags`). [Stages](stages.md) lists what
 each stage records.
 
+## Corrected RAW files (`fix-raw`)
+
+`raw-pipeline fix-raw input/ output/ --config config.yaml` writes a DNG per CR2
+with the defect map already corrected on the raw data. See
+[Corrected RAW (fix-raw)](fix-raw.md).
+
 ## Find sensor defects (`detect-defects`)
 
 Hot or stuck columns, rows and pixels are corrected on the raw mosaic before

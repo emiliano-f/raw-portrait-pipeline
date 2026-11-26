@@ -21,6 +21,7 @@ from raw_pipeline.core import registries as core_registries
 from raw_pipeline.core.protocols import (
     BatchReporter,
     DefectCorrector,
+    DngSource,
     Exporter,
     FaceDetector,
     MeteringStrategy,
@@ -53,6 +54,7 @@ class ComponentRegistries:
         stages: Per-image stages.
         raw_decoders: RAW decoders (``detect-defects`` opens frames with them).
         defect_correctors: Raw-level defect correctors.
+        dng_sources: Base-DNG sources of ``fix-raw``.
         detectors: Face detectors.
         metering: Metering strategies.
         retouchers: Skin retouchers.
@@ -64,6 +66,7 @@ class ComponentRegistries:
     stages: Registry[Stage]
     raw_decoders: Registry[RawDecoder]
     defect_correctors: Registry[DefectCorrector]
+    dng_sources: Registry[DngSource]
     detectors: Registry[FaceDetector]
     metering: Registry[MeteringStrategy]
     retouchers: Registry[Retoucher]
@@ -78,6 +81,7 @@ class ComponentRegistries:
             stages=core_registries.stage_registry,
             raw_decoders=core_registries.raw_decoder_registry,
             defect_correctors=core_registries.defect_corrector_registry,
+            dng_sources=core_registries.dng_source_registry,
             detectors=core_registries.face_detector_registry,
             metering=core_registries.metering_registry,
             retouchers=core_registries.retoucher_registry,
@@ -93,6 +97,7 @@ class ComponentRegistries:
             stages=Registry("stages"),
             raw_decoders=Registry("raw_decoders"),
             defect_correctors=Registry("defect_correctors"),
+            dng_sources=Registry("dng_sources"),
             detectors=Registry("detectors"),
             metering=Registry("metering"),
             retouchers=Registry("retouchers"),
@@ -107,6 +112,7 @@ class ComponentRegistries:
             self.stages,
             self.raw_decoders,
             self.defect_correctors,
+            self.dng_sources,
             self.detectors,
             self.metering,
             self.retouchers,

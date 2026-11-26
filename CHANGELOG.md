@@ -4,6 +4,20 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 
 ## [Unreleased]
 
+### Added
+
+- `raw-pipeline fix-raw input/ output/`: writes `<name>.dng` with the `defects.map` photosites corrected by the configured `defects.method`, to keep editing as RAW. The base DNG comes from a pluggable `DngSource` (`dnglab` default, `adobe_converter`, `existing_dng`); only changed photosite bytes are patched, digests are recomputed or removed, previews regenerated/kept/removed, each output verified, and `fix_raw_report.csv` records every image (ADR 0003).
+- `raw_export` config section (`source`, `converter.executable/args/timeout_s`, `preview`, `verify`, `keep_gps`, `report_filename`).
+- Corrected DNGs strip GPS (EXIF GPS IFD and XMP `exif:GPS*` fields) by default, like the JPG/TIFF exports; `raw_export.keep_gps` (unset = `export.keep_gps`) keeps it. The raw data and its digests are not touched; the report's `gps` column says `absent`, `kept` or `stripped`.
+- `fix-raw` verification compares each configured defect's detector score before and after correction: unchanged or new lines fail, weaker residuals (a thin scene stripe beside the corrected column) pass with a warning as `passed_residual`.
+- Corrected DNGs get a new `RawDataUniqueID` (`MD5(old ID + NewRawImageDigest of the corrected data)`) when photosites changed, so Adobe apps do not confuse them with the base DNG; passthrough output keeps it. Reported as `raw_data_unique_id` / `raw_data_unique_id_value` (ADR 0003).
+- `raw_export.allow_embedded_original` (default off): base DNGs that embed their original raw file (`OriginalRawFileData`) fail, since the embedded CR2 still shows the defect; when allowed (only with GPS kept) they pass with a warning and the report's `embedded_original` column says `kept`.
+- A public dark-frame fixture (`tests/fixtures/dark/dark_iso400.CR2`, EOS 800D, no personal data) for defect detection and `fix-raw` tests in CI.
+
+### Changed
+
+- Integration tests read real portrait CR2s only from `RAW_PIPELINE_FIXTURES_DIR` (replaces `RAW_PIPELINE_SAMPLES` and the `tests/fixtures/` fallback) and skip without it.
+
 ## [0.2.0] - 2026-11-24
 
 ### Added

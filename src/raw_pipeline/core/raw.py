@@ -194,6 +194,27 @@ class DetectedDefect:
 
 
 @dataclass(frozen=True)
+class DefectResidual:
+    """A configured defect the detector still finds after correction.
+
+    Attributes:
+        defect: The configured defect.
+        score_before: Median absolute difference (DN) of its still-detected photosites from their nearest
+            same-colour neighbours outside it (across the line; the eight around a pixel), uncorrected.
+        score_after: The same in the corrected frame.
+    """
+
+    defect: Defect
+    score_before: float
+    score_after: float
+
+    @property
+    def improved(self) -> bool:
+        """Whether correction lowered the deviation (a weaker residual, not an unchanged, worse or new line)."""
+        return self.score_after < self.score_before
+
+
+@dataclass(frozen=True)
 class DevelopedImage:
     """Demosaiced output of a :class:`~raw_pipeline.core.protocols.RawHandle`.
 
